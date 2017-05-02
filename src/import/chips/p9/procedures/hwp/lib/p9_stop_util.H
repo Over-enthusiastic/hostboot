@@ -39,6 +39,9 @@
     #include <fapi2.H>
 #endif
 
+#ifdef __SKIBOOT__
+   #include <skiboot.h>
+#endif
 ///
 /// @file   p9_stop_util.H
 /// @brief  describes some utilty functions for STOP API.
