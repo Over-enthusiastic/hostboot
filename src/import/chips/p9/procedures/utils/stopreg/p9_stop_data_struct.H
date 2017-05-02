@@ -35,11 +35,15 @@
 #ifndef __STOP_DATA_STRUCT_
 #define __STOP_DATA_STRUCT_
 
-#ifndef  _AIX
+#if !defined  _AIX && !defined __SKIBOOT__
     #include <endian.h>
 #endif
 
 #include "p9_hcd_memmap_base.H"
+
+#ifdef __SKIBOOT__
+    #include <skiboot.h>
+#endif
 
 #ifdef __FAPI_2_
     #include <fapi2.H>
