@@ -89,6 +89,7 @@ static StopReturnCode_t validateSprImageInputs( void*   const i_pImage,
         uint32_t*     i_pThreadId,
         bool* i_pThreadLevelReg )
 {
+    uint32_t index = 0;
     StopReturnCode_t l_rc = STOP_SAVE_SUCCESS;
     bool sprSupported = false;
     *i_pThreadLevelReg = false;
@@ -133,8 +134,6 @@ static StopReturnCode_t validateSprImageInputs( void*   const i_pImage,
             MY_ERR( "invalid thread " );
             break;
         }
-
-        uint32_t index = 0;
 
         for( index = 0; index < MAX_SPR_SUPPORTED; ++index )
         {
@@ -291,6 +290,7 @@ static uint32_t getRldicrInstruction( const uint16_t i_Ra, const uint16_t i_Rs,
 
 //-----------------------------------------------------------------------------
 
+#if 0 
 /**
  * @brief generates instruction for mtmsrd instruction.
  * @param[in]   i_Rs      source register number
@@ -306,7 +306,7 @@ static uint32_t getMtmsrdInstruction( const uint16_t i_Rs )
 
     return SWIZZLE_4_BYTE(mtmsrdInstOpcode);
 }
-
+#endif
 //-----------------------------------------------------------------------------
 
 /**
@@ -326,8 +326,8 @@ static StopReturnCode_t lookUpSprInImage( uint32_t* i_pThreadSectLoc,
                                    void** io_pSprEntryLoc )
 {
     StopReturnCode_t l_rc = STOP_SAVE_FAIL;
-    uint32_t temp = i_isCoreReg ? uint32_t(CORE_RESTORE_CORE_AREA_SIZE) :
-                    uint32_t(CORE_RESTORE_THREAD_AREA_SIZE);
+    uint32_t temp = i_isCoreReg ? (uint32_t)(CORE_RESTORE_CORE_AREA_SIZE) :
+                    (uint32_t)(CORE_RESTORE_THREAD_AREA_SIZE);
     uint32_t* i_threadSectEnd = i_pThreadSectLoc + temp;
     uint32_t bctr_inst = SWIZZLE_4_BYTE(BLR_INST);
     *io_pSprEntryLoc = NULL;
@@ -783,6 +783,16 @@ StopReturnCode_t p9_stop_save_scom( void* const   i_pImage,
     uint32_t entryLimit = 0;
     uint8_t chipletId = 0;
 
+    uint32_t nopInst;
+    ScomEntry_t* pEntryLocation = NULL;
+    ScomEntry_t* pNopLocation = NULL;
+    ScomEntry_t* pTableEndLocationtable = NULL;
+    uint32_t swizzleAddr;
+    uint64_t swizzleData;
+    uint32_t swizzleAttn;
+    uint32_t swizzleEntry;
+    uint32_t index = 0;
+    uint32_t swizzleBlr = SWIZZLE_4_BYTE(BLR_INST);
     do
     {
         chipletId = i_scomAddress >> 24;
@@ -865,17 +875,11 @@ StopReturnCode_t p9_stop_save_scom( void* const   i_pImage,
             break;
         }
 
-        uint32_t nopInst = getOriInstruction( 0, 0, 0 );
-
-        ScomEntry_t* pEntryLocation = NULL;
-        ScomEntry_t* pNopLocation = NULL;
-        ScomEntry_t* pTableEndLocationtable = NULL;
-        uint32_t swizzleAddr = SWIZZLE_4_BYTE(i_scomAddress);
-        uint64_t swizzleData = SWIZZLE_8_BYTE(i_scomData);
-        uint32_t swizzleAttn = SWIZZLE_4_BYTE(ATTN_OPCODE);
-        uint32_t swizzleEntry = SWIZZLE_4_BYTE(SCOM_ENTRY_START);
-        uint32_t index = 0;
-        uint32_t swizzleBlr = SWIZZLE_4_BYTE(BLR_INST);
+	nopInst = getOriInstruction( 0, 0, 0 );
+	swizzleAddr = SWIZZLE_4_BYTE(i_scomAddress);
+	swizzleData = SWIZZLE_8_BYTE(i_scomData);
+        swizzleAttn = SWIZZLE_4_BYTE(ATTN_OPCODE);
+        swizzleEntry = SWIZZLE_4_BYTE(SCOM_ENTRY_START);
 
         for( index = 0; index < entryLimit; ++index )
         {
