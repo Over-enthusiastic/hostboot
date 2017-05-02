@@ -48,7 +48,7 @@
 // *HWP Team        :  PM
 // *HWP Level       :  2
 // *HWP Consumed by :  HB:HYP
-#ifndef __PPE_PLAT
+#if !defined __PPE_PLAT && defined __cplusplus
 namespace stopImageSection
 {
 #endif  //__PPE_PLAT
@@ -131,9 +131,9 @@ StopReturnCode_t getCoreAndThread( void* const i_pStopImage,
                                    const uint64_t i_pir,
                                    uint32_t* o_coreId,
                                    uint32_t* o_threadId );
-
+#ifdef  __cplusplus
 } // namespace stopImageSection ends
-
+#endif /* __cplusplus */
 #endif //__PPE_PLAT
 #endif
 
