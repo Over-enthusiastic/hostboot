@@ -1,0 +1,943 @@
+/* IBM_PROLOG_BEGIN_TAG                                                   */
+/* This is an automatically generated prolog.                             */
+/*                                                                        */
+/* $Source: src/usr/pnor/runtime/rt_pnor.C $                              */
+/*                                                                        */
+/* OpenPOWER HostBoot Project                                             */
+/*                                                                        */
+/* Contributors Listed Below - COPYRIGHT 2014,2017                        */
+/* [+] International Business Machines Corp.                              */
+/*                                                                        */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License");        */
+/* you may not use this file except in compliance with the License.       */
+/* You may obtain a copy of the License at                                */
+/*                                                                        */
+/*     http://www.apache.org/licenses/LICENSE-2.0                         */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/*                                                                        */
+/* IBM_PROLOG_END_TAG                                                     */
+
+#include <stdlib.h>
+#include <targeting/common/targetservice.H>
+#include <initservice/taskargs.H>
+
+#include <runtime/rt_targeting.H>
+#include <runtime/interface.h>
+
+#include <pnor/pnorif.H>
+#include <pnor/ecc.H>
+#include <pnor/pnor_reasoncodes.H>
+#include "rt_pnor.H"
+
+#include "../ffs.h"
+#include "../common/ffs_hb.H"
+#include <util/align.H>
+#include <runtime/customize_attrs_for_payload.H>
+#include <securerom/ROM.H>
+
+// Trace definition
+extern trace_desc_t* g_trac_pnor;
+
+/**
+ * @brief   set up _start() task entry procedure for PNOR daemon
+ */
+TASK_ENTRY_MACRO( RtPnor::init );
+
+// @TODO RTC:155374 Remove this in the future
+const size_t BEST_EFFORT_NUM_BYTES = 32;
+
+/**
+ * @brief  Return the size and address of a given section of PNOR data
+ */
+errlHndl_t PNOR::getSectionInfo( PNOR::SectionId i_section,
+                                 PNOR::SectionInfo_t& o_info )
+{
+    return Singleton<RtPnor>::instance().getSectionInfo(i_section,o_info);
+}
+
+/**
+ * @brief  Write the data for a given sectino into PNOR
+ */
+errlHndl_t PNOR::flush( PNOR::SectionId i_section)
+{
+    return Singleton<RtPnor>::instance().flush(i_section);
+}
+
+/**
+ * @brief  Returns information about a given side of PNOR
+ */
+errlHndl_t PNOR::getSideInfo( PNOR::SideId i_side,
+                              PNOR::SideInfo_t& o_info)
+{
+    return Singleton<RtPnor>::instance().getSideInfo(i_side,o_info);
+}
+
+/**
+ * @brief Clear pnor section
+ */
+errlHndl_t PNOR::clearSection(PNOR::SectionId i_section)
+{
+    return Singleton<RtPnor>::instance().clearSection(i_section);
+}
+
+void PNOR::getPnorInfo( PnorInfo_t& o_pnorInfo )
+{
+    o_pnorInfo.mmioOffset = LPC_SFC_MMIO_OFFSET | LPC_FW_SPACE;
+
+    //Using sys target
+    TARGETING::Target* sys = NULL;
+    TARGETING::targetService().getTopLevelTarget( sys );
+    assert(sys != NULL);
+
+    o_pnorInfo.norWorkarounds = sys->getAttr<
+            TARGETING::ATTR_PNOR_FLASH_WORKAROUNDS>();
+
+#ifdef CONFIG_PNOR_IS_32MB
+    o_pnorInfo.flashSize = 32*MEGABYTE;
+#else
+    o_pnorInfo.flashSize = 64*MEGABYTE;
+#endif
+
+}
+
+/****************Public Methods***************************/
+
+uint64_t RtPnor::iv_masterProcId = RUNTIME::HBRT_HYP_ID_UNKNOWN;
+
+/**
+ * STATIC
+ * @brief Static Initializer
+ */
+void RtPnor::init(errlHndl_t &io_taskRetErrl)
+{
+    TRACFCOMP(g_trac_pnor, "RtPnor::init> " );
+    do {
+    io_taskRetErrl  = Singleton<RtPnor>::instance().getMasterProcId();
+    if (io_taskRetErrl)
+    {
+        break;
+    }
+    io_taskRetErrl  = Singleton<RtPnor>::instance().readTOC();
+    if (io_taskRetErrl)
+    {
+        break;
+    }
+    }while (0);
+    TRACFCOMP(g_trac_pnor, "<RtPnor::init" );
+}
+/**************************************************************/
+errlHndl_t RtPnor::getSectionInfo(PNOR::SectionId i_section,
+                              PNOR::SectionInfo_t& o_info)
+{
+    TRACFCOMP(g_trac_pnor, ENTER_MRK"RtPnor::getSectionInfo");
+    errlHndl_t l_err = NULL;
+    do
+    {
+        if (i_section == PNOR::INVALID_SECTION)
+        {
+            TRACFCOMP(g_trac_pnor, "RtPnor::getSectionInfo: Invalid Section"
+                    " %d", (int)i_section);
+            /*@
+             * @errortype
+             * @moduleid    PNOR::MOD_RTPNOR_GETSECTIONINFO
+             * @reasoncode  PNOR::RC_RTPNOR_INVALID_SECTION
+             * @userdata1   PNOR::SectionId
+             * @devdesc     invalid section passed to getSectionInfo
+             */
+            l_err = new ERRORLOG::ErrlEntry(ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                                            PNOR::MOD_RTPNOR_GETSECTIONINFO,
+                                            PNOR::RC_RTPNOR_INVALID_SECTION,
+                                            i_section, 0,true);
+            break;
+        }
+
+        //size of the section
+        uint64_t l_sizeBytes = iv_TOC[i_section].size;
+        if (l_sizeBytes == 0)
+        {
+            TRACFCOMP(g_trac_pnor,"RtPnor::getSectionInfo: Section %d"
+                    " size is 0", (int)i_section);
+            /*@
+             * @errortype
+             * @moduleid    PNOR::MOD_RTPNOR_GETSECTIONINFO
+             * @reasoncode  PNOR::RC_SECTION_SIZE_IS_ZERO
+             * @userdata1   PNOR::SectionId
+             * @devdesc     section size is zero
+             */
+            l_err = new ERRORLOG::ErrlEntry(ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                                            PNOR::MOD_RTPNOR_GETSECTIONINFO,
+                                            PNOR::RC_SECTION_SIZE_IS_ZERO,
+                                            i_section, 0,true);
+            break;
+        }
+
+        //ecc
+        bool l_ecc = (iv_TOC[i_section].integrity&FFS_INTEG_ECC_PROTECT) ?
+                      true : false;
+
+        void* l_pWorking = NULL;
+        void* l_pClean   = NULL;
+
+        //find the section in the map first
+        if(iv_pnorMap.find(i_section) != iv_pnorMap.end())
+        {
+            //get the addresses from the map
+            PnorAddrPair_t l_addrPair = iv_pnorMap[i_section];
+            l_pWorking = l_addrPair.first;
+            l_pClean   = l_addrPair.second;
+        }
+        else
+        {
+            //malloc twice -- one working copy and one clean copy
+            //So, we can diff and write only the dirty bytes
+            l_pWorking = malloc(l_sizeBytes);
+            l_pClean   = malloc(l_sizeBytes);
+
+            //offset = 0 : read the entire section
+            l_err = readFromDevice(iv_masterProcId, i_section, 0, l_sizeBytes,
+                                   l_ecc, l_pWorking);
+            if(l_err)
+            {
+                TRACFCOMP(g_trac_pnor, "RtPnor::getSectionInfo:readFromDevice"
+                      " failed");
+                break;
+            }
+
+            //copy data to another pointer to save a clean copy of data
+            memcpy(l_pClean, l_pWorking, l_sizeBytes);
+
+            //save it in the map
+            iv_pnorMap [i_section] = PnorAddrPair_t(l_pWorking, l_pClean);
+        }
+        //return the data in the struct
+        o_info.id           = i_section;
+        o_info.name         = SectionIdToString(i_section);
+        o_info.vaddr        = (uint64_t)l_pWorking;
+        o_info.flashAddr    = iv_TOC[i_section].flashAddr;
+        o_info.size         = l_sizeBytes;
+        o_info.eccProtected = l_ecc;
+        o_info.sha512Version=
+            (iv_TOC[i_section].version & FFS_VERS_SHA512) ? true : false;
+        o_info.sha512perEC  =
+           (iv_TOC[i_section].version & FFS_VERS_SHA512_PER_EC) ? true : false;
+#ifdef CONFIG_SECUREBOOT
+        // We don't verify PNOR sections at runtime, but we
+        // still have to bypass the secure header
+        if(iv_TOC[i_section].secure)
+        {
+            o_info.vaddr += PAGESIZE;
+            o_info.size -= PAGESIZE;
+        }
+#endif
+    } while (0);
+
+    TRACFCOMP(g_trac_pnor, EXIT_MRK"RtPnor::getSectionInfo");
+    return l_err;
+}
+
+/**************************************************************/
+errlHndl_t RtPnor::flush( PNOR::SectionId i_section)
+{
+    TRACFCOMP(g_trac_pnor, ENTER_MRK"RtPnor::flush");
+    errlHndl_t l_err = NULL;
+    do
+    {
+        if (i_section == PNOR::INVALID_SECTION)
+        {
+            TRACFCOMP(g_trac_pnor,"RtPnor::flush: Invalid Section: %d",
+                    (int)i_section);
+            /*@
+             * @errortype
+             * @moduleid    PNOR::MOD_RTPNOR_FLUSH
+             * @reasoncode  PNOR::RC_INVALID_SECTION
+             * @userdata1   PNOR::SectionId
+             * @devdesc     invalid section passed to flush
+             */
+            l_err = new ERRORLOG::ErrlEntry(ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                                            PNOR::MOD_RTPNOR_FLUSH,
+                                            PNOR::RC_INVALID_SECTION,
+                                            i_section, 0,true);
+            break;
+        }
+        size_t l_sizeBytes = iv_TOC[i_section].size;
+        if (l_sizeBytes == 0)
+        {
+            TRACFCOMP(g_trac_pnor,"RtPnor::flush: Section %d"
+                " size is 0", (int)i_section);
+
+            /*@
+             * @errortype
+             * @moduleid    PNOR::MOD_RTPNOR_FLUSH
+             * @reasoncode  PNOR::RC_SECTION_SIZE_IS_ZERO
+             * @userdata1   PNOR::SectionId
+             * @devdesc     section size is zero
+             */
+            l_err = new ERRORLOG::ErrlEntry(ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                                            PNOR::MOD_RTPNOR_FLUSH,
+                                            PNOR::RC_SECTION_SIZE_IS_ZERO,
+                                            i_section, 0,true);
+            break;
+        }
+
+        //get the saved pointers for the partitionName
+        PnorAddrMap_t::iterator l_it = iv_pnorMap.find(i_section);
+        if(l_it == iv_pnorMap.end())
+        {
+            TRACFCOMP(g_trac_pnor,"RtPnor::flush: section %d has not been read before",
+                      i_section);
+            break;
+        }
+        PnorAddrPair_t l_addrPair = l_it->second;
+        uint8_t* l_pWorking = reinterpret_cast<uint8_t*>(l_addrPair.first);
+        uint8_t* l_pClean   = reinterpret_cast<uint8_t*>(l_addrPair.second);
+
+        //ecc
+        bool l_ecc = (iv_TOC[i_section].integrity&FFS_INTEG_ECC_PROTECT) ?
+                            true : false;
+
+        //find the diff between each pointer
+        //write back to pnor what doesn't match
+        TRACFCOMP(g_trac_pnor, "finding diff between working and clean copy...");
+        for (uint64_t i = 0; i < (l_sizeBytes/PAGESIZE); i++)
+        {
+            if (0 != memcmp(l_pWorking, l_pClean, PAGESIZE))
+            {
+                TRACFCOMP(g_trac_pnor, "RtPnor::flush: page %d is different,"
+                        " writing back to pnor", i);
+                l_err = writeToDevice(iv_masterProcId, i_section,
+                                      i*PAGESIZE,PAGESIZE, l_ecc, l_pWorking);
+                if (l_err)
+                {
+                    TRACFCOMP(g_trac_pnor, "RtPnor::flush: writeToDevice failed");
+                    break;
+                }
+                //update the clean copy
+                memcpy(l_pClean, l_pWorking, PAGESIZE);
+            }
+            l_pWorking += PAGESIZE;
+            l_pClean   += PAGESIZE;
+        }
+
+        if (l_err)
+        {
+            TRACFCOMP(g_trac_pnor,"RtPnor::flush: error writing section %d"
+                    " back to pnor",(int)i_section);
+            break;
+        }
+    } while (0);
+
+    TRACFCOMP(g_trac_pnor, EXIT_MRK"RtPnor::flush");
+    return l_err;
+}
+/*******Protected Methods**************/
+RtPnor::RtPnor()
+{
+    do {
+    errlHndl_t l_err = getMasterProcId();
+    if (l_err)
+    {
+        errlCommit(l_err, PNOR_COMP_ID);
+        break;
+    }
+    l_err = readTOC();
+    if (l_err)
+    {
+        errlCommit(l_err, PNOR_COMP_ID);
+        break;
+    }
+    } while (0);
+}
+
+/*************************/
+RtPnor::~RtPnor()
+{
+}
+
+/*******************Private Methods*********************/
+errlHndl_t RtPnor::readFromDevice (uint64_t i_procId,
+                                   PNOR::SectionId i_section,
+                                   uint64_t i_offset,
+                                   size_t i_size,
+                                   bool i_ecc,
+                                   void* o_data) const
+{
+    TRACFCOMP(g_trac_pnor, ENTER_MRK"RtPnor::readFromDevice: i_offset=0x%X, "
+           "i_procId=%d sec=%d size=0x%X ecc=%d", i_offset, i_procId, i_section,
+             i_size, i_ecc);
+    errlHndl_t l_err        = NULL;
+    uint8_t*   l_eccBuffer  = NULL;
+    do
+    {
+
+        const char* l_partitionName  = SectionIdToString(i_section);
+        void*  l_dataToRead          = o_data;
+        size_t l_readSize            = i_size;
+        size_t l_readSizePlusECC     = (i_size * 9)/8;
+        uint64_t l_offset            = i_offset;
+
+        // if we need to handle ECC, we need to read more
+        if( i_ecc )
+        {
+            l_eccBuffer  = new uint8_t[l_readSizePlusECC]();
+            l_dataToRead = l_eccBuffer;
+            l_readSize   = l_readSizePlusECC;
+            l_offset     = (i_offset * 9)/8;
+        }
+
+        int l_rc = 0;
+        if (g_hostInterfaces && g_hostInterfaces->pnor_read)
+        {
+            // get the data from OPAL
+            l_rc = g_hostInterfaces->pnor_read(i_procId, l_partitionName,
+                    l_offset, l_dataToRead, l_readSize);
+            if (l_rc < 0)
+            {
+                TRACFCOMP(g_trac_pnor, "RtPnor::readFromDevice: pnor_read"
+                        " failed proc:%d, part:%s, offset:0x%X, size:0x%X,"
+                        " dataPt:0x%X, rc:%d", i_procId, l_partitionName,
+                        l_offset, l_readSize, l_dataToRead, l_rc);
+                /*@
+                 * @errortype
+                 * @moduleid            PNOR::MOD_RTPNOR_READFROMDEVICE
+                 * @reasoncode          PNOR::RC_PNOR_READ_FAILED
+                 * @userdata1[00:31]    rc returned from pnor_read
+                 * @userdata1[32:63]    section ID
+                 * @userdata2[00:31]    offset within the section
+                 * @userdata2[32:63]    size of data read in bytes
+                 * @devdesc             g_hostInterfaces->pnor_read failed
+                 * @custdesc            Error accessing system firmware flash
+                 */
+                //@todo Add PNOR callout RTC:116145
+                l_err = new ERRORLOG::ErrlEntry(
+                                 ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                                 PNOR::MOD_RTPNOR_READFROMDEVICE,
+                                 PNOR::RC_PNOR_READ_FAILED,
+                                 TWO_UINT32_TO_UINT64(l_rc, i_section),
+                                 TWO_UINT32_TO_UINT64(l_offset, l_readSize),
+                                 true);
+                break;
+            }
+            else if( l_rc != static_cast<int>(l_readSize) )
+            {
+                TRACFCOMP( g_trac_pnor, "RtPnor::readFromDevice: only read 0x%X bytes, expecting 0x%X", l_rc, l_readSize );
+
+                if( PNOR::TOC == i_section )
+                {
+                    // we can't know how big the TOC partition is without
+                    // reading it so we have to make a request for more
+                    // data and then handle a smaller amount getting returned
+                    TRACFCOMP( g_trac_pnor, "Ignoring mismatch for TOC" );
+                }
+                else // everything else should have a known size
+                {
+                    /*@
+                     * @errortype
+                     * @moduleid            PNOR::MOD_RTPNOR_READFROMDEVICE
+                     * @reasoncode          PNOR::RC_WRONG_SIZE_FROM_READ
+                     * @userdata1[00:31]    section ID
+                     * @userdata1[32:63]    requested size of read
+                     * @userdata2[00:31]    requested start offset into flash
+                     * @userdata2[32:63]    actual amount read
+                     * @devdesc             Amount of data read from pnor does
+                     *                      not match expected size
+                     * @custdesc          Error accessing system firmware flash
+                     */
+                    l_err = new ERRORLOG::ErrlEntry(
+                                ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                                PNOR::MOD_RTPNOR_READFROMDEVICE,
+                                PNOR::RC_WRONG_SIZE_FROM_READ,
+                                TWO_UINT32_TO_UINT64(i_section,l_readSize),
+                                TWO_UINT32_TO_UINT64(l_offset,l_rc),
+                                true);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            TRACFCOMP(g_trac_pnor,"RtPnor::readFromDevice: This version of"
+                    " OPAL does not support pnor_read");
+                /*@
+                 * @errortype
+                 * @moduleid           PNOR::MOD_RTPNOR_READFROMDEVICE
+                 * @reasoncode         PNOR::RC_PNOR_READ_NOT_SUPPORTED
+                 * @devdesc            g_hostInterfaces->pnor_read not supported
+                 * @custdesc           Error accessing system firmware flash
+                 */
+                //@todo Add PNOR callout RTC:116145
+                l_err = new ERRORLOG::ErrlEntry(
+                                 ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                                 PNOR::MOD_RTPNOR_READFROMDEVICE,
+                                 PNOR::RC_PNOR_READ_NOT_SUPPORTED,
+                                 0,0,true);
+                break;
+        }
+        // remove the ECC data
+        if( i_ecc )
+        {
+            TRACFCOMP(g_trac_pnor, "RtPnor::readFromDevice: removing ECC...");
+            // remove the ECC and fix the original data if it is broken
+            size_t l_eccSize = (l_rc/9)*8;
+            l_eccSize = std::min( l_eccSize, i_size );
+            PNOR::ECC::eccStatus ecc_stat =
+                 PNOR::ECC::removeECC(reinterpret_cast<uint8_t*>(l_dataToRead),
+                                      reinterpret_cast<uint8_t*>(o_data),
+                                      l_eccSize); //logical size of read data
+
+            // create an error if we couldn't correct things
+            if( ecc_stat == PNOR::ECC::UNCORRECTABLE )
+            {
+                TRACFCOMP(g_trac_pnor,"RtPnor::readFromDevice>"
+                    " Uncorrectable ECC error : chip=%d,offset=0x%.X",
+                    i_procId, i_offset );
+                /*@
+                 * @errortype
+                 * @moduleid    PNOR::MOD_RTPNOR_READFROMDEVICE
+                 * @reasoncode  PNOR::RC_UNCORRECTABLE_ECC
+                 * @devdesc     UNCORRECTABLE ECC
+                 */
+                //@todo Add PNOR callout RTC:116145
+                l_err = new ERRORLOG::ErrlEntry(
+                                    ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                                    PNOR::MOD_RTPNOR_READFROMDEVICE,
+                                    PNOR::RC_UNCORRECTABLE_ECC,
+                                    0, 0, true);
+                break;
+            }
+
+            // found an error so we need to fix something
+            else if( ecc_stat != PNOR::ECC::CLEAN )
+            {
+                TRACFCOMP(g_trac_pnor,"RtPnor::readFromDevice>"
+                      "Correctable ECC error : chip=%d, offset=0x%.X",
+                      i_procId, i_offset );
+                if (g_hostInterfaces && g_hostInterfaces->pnor_write)
+                {
+
+                    //need to write good data back to PNOR
+                    int l_rc = g_hostInterfaces->pnor_write(i_procId,
+                            l_partitionName,l_offset, l_dataToRead,l_readSize);
+                    if (l_rc != static_cast<int>(l_readSize))
+                    {
+                        TRACFCOMP(g_trac_pnor, "RtPnor::readFromDevice> Error"
+                        " writing corrected data back to device");
+
+                        /*@
+                         * @errortype
+                         * @moduleid   PNOR::MOD_RTPNOR_READFROMDEVICE
+                         * @reasoncode PNOR::RC_PNOR_WRITE_FAILED
+                         * @userdata1  rc returned from pnor_write
+                         * @userdata2  Expected size of write
+                         * @devdesc    error writing corrected data back to PNOR
+                         * @custdesc   Error accessing system firmware flash
+                         */
+                        l_err = new ERRORLOG::ErrlEntry(
+                                          ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                                          PNOR::MOD_RTPNOR_READFROMDEVICE,
+                                          PNOR::RC_PNOR_WRITE_FAILED,
+                                          l_rc, l_readSize, true);
+                        errlCommit(l_err, PNOR_COMP_ID);
+                    }
+                }
+            }
+        }
+    } while(0);
+
+    if( l_eccBuffer )
+    {
+        delete[] l_eccBuffer;
+    }
+
+    TRACFCOMP(g_trac_pnor, EXIT_MRK"RtPnor::readFromDevice" );
+    return l_err;
+}
+
+/*********************************************************************/
+errlHndl_t RtPnor::writeToDevice( uint64_t i_procId,
+                                  PNOR::SectionId i_section,
+                                  uint64_t i_offset,
+                                  size_t i_size,
+                                  bool i_ecc,
+                                  void* i_src )
+{
+    TRACFCOMP(g_trac_pnor, ENTER_MRK"RtPnor::writeToDevice: i_offset=0x%X, "
+           "i_procId=%d sec=%d size=0x%X ecc=%d", i_offset, i_procId, i_section,
+             i_size, i_ecc);
+    errlHndl_t l_err        = NULL;
+    uint8_t*   l_eccBuffer  = NULL;
+
+    do
+    {
+        void*  l_dataToWrite      = i_src;
+        size_t l_writeSize        = i_size;
+        size_t l_writeSizePlusECC = (i_size * 9)/8;
+        uint64_t l_offset         = i_offset;
+
+        // apply ECC to data if needed
+        if( i_ecc )
+        {
+            l_eccBuffer = new uint8_t[l_writeSizePlusECC];
+            PNOR::ECC::injectECC( reinterpret_cast<uint8_t*>(i_src),
+                              l_writeSize,
+                              reinterpret_cast<uint8_t*>(l_eccBuffer) );
+            l_dataToWrite = reinterpret_cast<void*>(l_eccBuffer);
+            l_writeSize = l_writeSizePlusECC;
+            l_offset    = (i_offset * 9)/8;
+        }
+
+        const char* l_partitionName = SectionIdToString(i_section);
+        if (g_hostInterfaces && g_hostInterfaces->pnor_write)
+        {
+            //make call into opal to write the data
+            int l_rc = g_hostInterfaces->pnor_write(i_procId,
+                        l_partitionName,l_offset,l_dataToWrite,l_writeSize);
+            if (l_rc != static_cast<int>(l_writeSize))
+            {
+                TRACFCOMP(g_trac_pnor, "RtPnor::writeToDevice: pnor_write failed "
+                    "proc:%d, part:%s, offset:0x%X, size:0x%X, dataPt:0x%X,"
+                    " rc:%d", i_procId, l_partitionName, l_offset, l_writeSize,
+                    l_dataToWrite, l_rc);
+                /*@
+                 * @errortype
+                 * @moduleid            PNOR::MOD_RTPNOR_WRITETODEVICE
+                 * @reasoncode          PNOR::RC_PNOR_WRITE_FAILED
+                 * @userdata1[00:31]    rc returned from pnor_write
+                 * @userdata1[32:63]    section ID
+                 * @userdata2[00:31]    offset within the section
+                 * @userdata2[32:63]    size of data written in bytes
+                 * @devdesc             g_hostInterfaces->pnor_write failed
+                 * @custdesc            Error accessing system firmware flash
+                 */
+                l_err = new ERRORLOG::ErrlEntry(
+                             ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                             PNOR::MOD_RTPNOR_WRITETODEVICE,
+                             PNOR::RC_PNOR_WRITE_FAILED,
+                             TWO_UINT32_TO_UINT64(l_rc, i_section),
+                             TWO_UINT32_TO_UINT64(l_offset, l_writeSize),
+                             true);
+                 break;
+            }
+            else if( l_rc != static_cast<int>(l_writeSize) )
+            {
+                TRACFCOMP( g_trac_pnor, "RtPnor::writeToDevice: only read 0x%X bytes, expecting 0x%X", l_rc, l_writeSize );
+            }
+        }
+        else
+        {
+            TRACFCOMP(g_trac_pnor,"RtPnor::writeToDevice: This version of"
+                    " OPAL does not support pnor_write");
+            /*@
+             * @errortype
+             * @moduleid           PNOR::MOD_RTPNOR_WRITETODEVICE
+             * @reasoncode         PNOR::RC_PNOR_WRITE_NOT_SUPPORTED
+             * @devdesc            g_hostInterfaces->pnor_write not supported
+             * @custdesc           Error accessing system firmware flash
+             */
+            //@todo Add PNOR callout RTC:116145
+            l_err = new ERRORLOG::ErrlEntry(
+                             ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                             PNOR::MOD_RTPNOR_WRITETODEVICE,
+                             PNOR::RC_PNOR_WRITE_NOT_SUPPORTED,
+                             0,0,true);
+            break;
+
+        }
+    } while(0);
+
+    if( l_eccBuffer )
+    {
+        delete[] l_eccBuffer;
+    }
+
+    TRACFCOMP(g_trac_pnor, EXIT_MRK"RtPnor::writeToDevice" );
+    return l_err;
+}
+
+/*****************************************************************/
+errlHndl_t RtPnor::readTOC ()
+{
+    TRACFCOMP(g_trac_pnor, ENTER_MRK"RtPnor::readTOC" );
+    errlHndl_t l_err = nullptr;
+    uint8_t* l_toc0Buffer = new uint8_t[PNOR::TOC_SIZE];
+    do {
+        if (g_hostInterfaces && g_hostInterfaces->pnor_read)
+        {
+            // offset = 0 means read the entire PNOR::TOC partition
+            // This offset is offset into the partition, not offset from the
+            // beginning of the flash
+            l_err = readFromDevice (iv_masterProcId, PNOR::TOC, 0,
+                                    PNOR::TOC_SIZE, false, l_toc0Buffer);
+            if (l_err)
+            {
+                TRACFCOMP(g_trac_pnor,"RtPnor::readTOC:readFromDevice failed"
+                          " for TOC0");
+                break;
+            }
+
+            //Pass along TOC buffer to be parsed, parseTOC will parse through
+            // the buffer and store needed information in iv_TOC
+            // Note: that Opal should always return a valid TOC
+            l_err = PNOR::parseTOC(l_toc0Buffer, iv_TOC);
+            if (l_err)
+            {
+                TRACFCOMP(g_trac_pnor, "RtPnor::readTOC: parseTOC failed");
+                break;
+            }
+
+            // Check if PNOR section has a secureHeader or not.
+            // Cannot do a device read during parseTOC in Runtime, so do after.
+            l_err = setSecure(l_toc0Buffer, iv_TOC);
+            if (l_err)
+            {
+                TRACFCOMP(g_trac_pnor, "RtPnor::readTOC: setSecure failed");
+                break;
+            }
+        }
+    } while (0);
+
+    if(l_toc0Buffer != nullptr)
+    {
+        delete[] l_toc0Buffer;
+    }
+
+    TRACFCOMP(g_trac_pnor, EXIT_MRK"RtPnor::readTOC" );
+    return l_err;
+}
+
+// @TODO RTC:155374 Remove this in the future
+errlHndl_t RtPnor::setSecure(const uint8_t* i_tocBuffer,
+                             PNOR::SectionData_t* io_TOC) const
+{
+    errlHndl_t l_errhdl = nullptr;
+
+    assert(i_tocBuffer != nullptr, "RtPnor::setSecure received a NULL tocBuffer to read");
+    assert(io_TOC != nullptr, "RtPnor::setSecure received a NULL toc to modify");
+
+    do {
+        // Set secure flag for each section after the TOC
+        // Walk through all the entries in the table and parse the data.
+        auto const l_ffs_hdr = reinterpret_cast<const ffs_hdr*>(i_tocBuffer);
+        for(uint32_t i=0; i<l_ffs_hdr->entry_count; ++i)
+        {
+            uint32_t l_secId = PNOR::INVALID_SECTION;
+
+            // Get current entry section id
+            auto cur_entry = &(l_ffs_hdr->entries[i]);
+            PNOR::getSectionEnum(cur_entry, &l_secId);
+            if(l_secId == PNOR::INVALID_SECTION)
+            {
+              TRACFCOMP(g_trac_pnor, "RtPnor::setSecure Unrecognized Section name(%s), skipping",cur_entry->name);
+              continue;
+            }
+
+            // Set secure field based on enforced policy
+            io_TOC[l_secId].secure = PNOR::isEnforcedSecureSection(l_secId);
+
+#ifdef CONFIG_SECUREBOOT_BEST_EFFORT
+            if (io_TOC[l_secId].secure)
+            {
+                // Apply best effort policy by checking if the section appears to have a
+                // secure header
+                // Need to read first 4 bytes of data to check version header
+                // Note: For OPAL and PHYP need to read 8 bytes for ECC checking
+                //       In CXX test a pnorDD read is called and requires a
+                //       multiple of 4 bytes. If the section as ECC then it
+                //       needs to be a multiple of 4 bytes after ECC.
+                //       32 Bytes fulfills both requirements.
+                size_t l_size = BEST_EFFORT_NUM_BYTES;
+                uint8_t l_buf[l_size] = {0};
+
+                bool l_ecc = io_TOC[l_secId].integrity & FFS_INTEG_ECC_PROTECT;
+                // Read first 8 bytes of section data from PNOR
+                l_errhdl = readFromDevice(iv_masterProcId,
+                                          static_cast<PNOR::SectionId>(l_secId),
+                                          0, l_size, l_ecc, l_buf);
+                if (l_errhdl)
+                {
+                    break;
+                }
+
+                // Check if first 4 bytes match the Secureboot Magic Number
+                io_TOC[l_secId].secure &= PNOR::cmpSecurebootMagicNumber(l_buf);
+            }
+#endif
+        }
+        if (l_errhdl)
+        {
+            break;
+        }
+    } while(0);
+
+    return l_errhdl;
+}
+
+/***********************************************************/
+RtPnor& RtPnor::getInstance()
+{
+    return Singleton<RtPnor>::instance();
+}
+/***********************************************************/
+errlHndl_t RtPnor::getSideInfo( PNOR::SideId i_side,
+                                PNOR::SideInfo_t& o_info)
+{
+    errlHndl_t l_err = NULL;
+
+    do {
+        // We only support the working side at runtime
+        if( i_side != PNOR::WORKING )
+        {
+            /*@
+             * @errortype
+             * @moduleid           PNOR::MOD_RTPNOR_GETSIDEINFO
+             * @reasoncode         PNOR::RC_INVALID_PNOR_SIDE
+             * @userdata1          Requested SIDE
+             * @userdata2          0
+             * @devdesc            getSideInfo> Side not supported
+             * @custdesc           A problem occurred while accessing the boot flash.
+             */
+            l_err = new ERRORLOG::ErrlEntry(
+                             ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                             PNOR::MOD_RTPNOR_GETSIDEINFO,
+                             PNOR::RC_INVALID_PNOR_SIDE,
+                             TO_UINT64(i_side),
+                             0,true);
+            break;
+        }
+
+        o_info.id = PNOR::WORKING;
+        o_info.side = (ALIGN_DOWN_X(iv_TOC[PNOR::HB_BASE_CODE].flashAddr,32*MEGABYTE) == 0)
+          ? 'A':'B'; //@fixme TODO RTC:134436
+        //iv_side[i].isGolden = (ffsUserData->miscFlags & FFS_MISC_GOLDEN);
+        o_info.isGolden = false; //@fixme TODO RTC:134436
+        o_info.isGuardPresent = (iv_TOC[PNOR::GUARD_DATA].flashAddr == 0)
+          ? false : true;
+
+        o_info.hasOtherSide = false; //@fixme TODO RTC:134436
+        o_info.primaryTOC = iv_TOC[PNOR::TOC].flashAddr;
+        o_info.backupTOC = 0; //@fixme TODO RTC:134436
+        o_info.hbbAddress = iv_TOC[PNOR::HB_BASE_CODE].flashAddr;
+        o_info.hbbMmioOffset = 0; //@fixme TODO RTC:134436
+    } while(0);
+
+    return l_err;
+}
+
+
+errlHndl_t RtPnor::clearSection(PNOR::SectionId i_section)
+{
+    TRACFCOMP(g_trac_pnor, "RtPnor::clearSection Section id = %d", i_section);
+    errlHndl_t l_errl = NULL;
+    const uint64_t CLEAR_BYTE = 0xFF;
+    uint8_t* l_buf = new uint8_t[PAGESIZE]();
+    uint8_t* l_eccBuf = NULL;
+
+    do
+    {
+        // Flush pages of pnor section we are trying to clear
+        l_errl = flush(i_section);
+        if (l_errl)
+        {
+            TRACFCOMP( g_trac_pnor, ERR_MRK"RtPnor::clearSection: flush() failed on section",
+                        i_section);
+            break;
+        }
+
+        // Get PNOR section info
+        uint64_t l_address = iv_TOC[i_section].flashAddr;
+        uint64_t l_chipSelect = iv_TOC[i_section].chip;
+        uint32_t l_size = iv_TOC[i_section].size;
+        bool l_ecc = iv_TOC[i_section].integrity & FFS_INTEG_ECC_PROTECT;
+
+        // Number of pages needed to cycle proper ECC
+        // Meaning every 9th page will copy the l_eccBuf at offset 0
+        const uint64_t l_eccCycleNum = 9;
+
+        // Boundaries for properly splitting up an ECC page for 4K writes.
+        // Subtract 1 from l_eccCycleNum because we start writing with offset 0
+        // and add this value 8 times to complete a cycle.
+        const uint64_t l_sizeOfOverlapSection =
+                (PNOR::PAGESIZE_PLUS_ECC - PAGESIZE) /
+                (l_eccCycleNum - 1);
+
+        // Create clear section buffer
+        memset(l_buf, CLEAR_BYTE, PAGESIZE);
+
+        // apply ECC to data if needed
+        if(l_ecc)
+        {
+            l_eccBuf = new uint8_t[PNOR::PAGESIZE_PLUS_ECC]();
+            PNOR::ECC::injectECC( reinterpret_cast<uint8_t*>(l_buf),
+                                  PAGESIZE,
+                                  reinterpret_cast<uint8_t*>(l_eccBuf) );
+            l_size = (l_size*9)/8;
+        }
+
+        // Write clear section page to PNOR
+        for (uint64_t i = 0; i < l_size; i+=PAGESIZE)
+        {
+            if(l_ecc)
+            {
+                // Take (current page) mod (l_eccCycleNum) to get cycle position
+                uint8_t l_bufPos = ( (i/PAGESIZE) % l_eccCycleNum );
+                uint64_t l_bufOffset = l_sizeOfOverlapSection * l_bufPos;
+                memcpy(l_buf, (l_eccBuf + l_bufOffset), PAGESIZE);
+            }
+
+            // Set ecc parameter to false to avoid double writes will only write
+            // 4k at a time, even if the section is ecc protected.
+            l_errl = writeToDevice( iv_masterProcId, i_section,
+                                   (l_address + i), l_chipSelect,
+                                   false, l_buf);
+            if (l_errl)
+            {
+                TRACFCOMP( g_trac_pnor, ERR_MRK"RtPnor::clearSection: writeToDevice fail: eid=0x%X, rc=0x%X",
+                           l_errl->eid(), l_errl->reasonCode());
+                break;
+            }
+        }
+        if (l_errl)
+        {
+            break;
+        }
+    } while(0);
+
+    // Free allocated memory
+    if(l_eccBuf)
+    {
+        delete[] l_eccBuf;
+    }
+    delete [] l_buf;
+
+    return l_errl;
+}
+
+errlHndl_t RtPnor::getMasterProcId()
+{
+    errlHndl_t l_err = nullptr;
+
+    do {
+    TARGETING::Target* l_masterProc = nullptr;
+    l_err = TARGETING::targetService().queryMasterProcChipTargetHandle(l_masterProc);
+    if (l_err)
+    {
+        TRACFCOMP(g_trac_pnor, "RtPnor::getMasterProcId: queryMasterProcChipTargetHandle failed");
+        break;
+    }
+    l_err = RT_TARG::getRtTarget(l_masterProc, iv_masterProcId);
+    if (l_err)
+    {
+        TRACFCOMP(g_trac_pnor, "RtPnor::getMasterProcId: getRtTarget failed for master proc");
+        break;
+    }
+    } while(0);
+
+    return l_err;
+}
+
+

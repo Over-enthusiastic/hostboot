@@ -1,0 +1,1822 @@
+/* IBM_PROLOG_BEGIN_TAG                                                   */
+/* This is an automatically generated prolog.                             */
+/*                                                                        */
+/* $Source: src/usr/isteps/istep18/TodControls.C $                        */
+/*                                                                        */
+/* OpenPOWER HostBoot Project                                             */
+/*                                                                        */
+/* Contributors Listed Below - COPYRIGHT 2012,2017                        */
+/* [+] International Business Machines Corp.                              */
+/*                                                                        */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License");        */
+/* you may not use this file except in compliance with the License.       */
+/* You may obtain a copy of the License at                                */
+/*                                                                        */
+/*     http://www.apache.org/licenses/LICENSE-2.0                         */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/*                                                                        */
+/* IBM_PROLOG_END_TAG                                                     */
+
+//------------------------------------------------------------------------------
+//Includes
+//------------------------------------------------------------------------------
+//Standard library
+#include <list>
+
+#include <targeting/common/attributes.H>
+
+//Targeting support
+#include <targeting/common/targetservice.H>
+#include <targeting/common/util.H>
+#include "TodProc.H"
+#include "TodDrawer.H"
+#include "TodSvcUtil.H"
+#include "TodControls.H"
+#include "TodTypes.H"
+#include "TodTrace.H"
+#include "TodUtils.H"
+#include <devicefw/userif.H>
+#include <hwas/common/deconfigGard.H>
+
+//HWPF
+#include <plat_hwp_invoker.H>
+#include <p9_perv_scom_addresses.H>
+#include <p9_tod_setup.H>
+#include <errl/errlentry.H>
+#include <p9_tod_utils.H>
+#include <isteps/tod_init_reasoncodes.H>
+
+using namespace TARGETING;
+
+namespace TOD
+{
+
+//------------------------------------------------------------------------------
+//Static globals
+//------------------------------------------------------------------------------
+
+TodControls & TodControls::getTheInstance()
+{
+    return Singleton<TodControls>::instance();
+}
+
+//******************************************************************************
+//TodControls::TodControls
+//******************************************************************************
+TodControls::TodControls ()
+{
+    TOD_ENTER("TodControls constructor");
+    TOD_EXIT("TodControls constructor");
+}
+
+//******************************************************************************
+//TodControls::~TodControls
+//******************************************************************************
+TodControls ::~TodControls ()
+{
+    TOD_ENTER("TodControls destructor");
+
+    destroy(TOD_PRIMARY);
+    destroy(TOD_SECONDARY);
+
+    TOD_EXIT("TodControls destructor");
+}
+
+//******************************************************************************
+//TodControls::pickMdmt
+//******************************************************************************
+errlHndl_t TodControls ::pickMdmt(const p9_tod_setup_tod_sel i_config)
+{
+
+   TOD_ENTER("Input config is 0x%.2X", i_config);
+
+   errlHndl_t l_errHdl = NULL;
+
+   //MDMT is the master processor that drives TOD signals to all the remaining
+   //processors on the system, as such wherever possible algorithm will try to
+   //ensure that primary and secondary topology provides redundancy of MDMT.
+
+    do{
+
+
+        p9_tod_setup_tod_sel l_oppConfig =
+            (i_config == TOD_PRIMARY) ? TOD_SECONDARY : TOD_PRIMARY;
+        TodProc* l_otherConfigMdmt = iv_todConfig[l_oppConfig].iv_mdmt;
+        TodDrawerContainer l_todDrawerList =
+            iv_todConfig[i_config].iv_todDrawerList;
+        TodProcContainer l_procList;
+
+        if(l_otherConfigMdmt)
+        {
+            TOD_INF("MDMT(0x%.8X) is configured for the "
+                    "opposite config(0x%.2X)",
+                    GETHUID(l_otherConfigMdmt->getTarget()),
+                    l_oppConfig);
+            if(NULL == pickMdmt(l_otherConfigMdmt, i_config))
+            {
+                TOD_INF("For config 0x%.2X, the only option for the MDMT "
+                        "is the MDMT(0x%.8X) chosen for "
+                        "the opposite config 0x%.2X",
+                        i_config,
+                        GETHUID(l_otherConfigMdmt->getTarget()),
+                        l_oppConfig);
+
+                //Get the TodProc pointer to l_otherConfigMdmt from this
+                //config's data structures.
+                for (const auto & l_drwItr: l_todDrawerList)
+                {
+                    //This call will filter out GARDed/blacklisted chips
+                    l_drwItr->
+                        getPotentialMdmts(l_procList);
+                    //Now we check if l_otherConfigMdmt is still good.
+                    for (const auto & l_procItr: l_procList)
+                    {
+                        if(l_procItr->getTarget() ==
+                            (iv_todConfig[l_oppConfig].iv_mdmt)->getTarget())
+                        {
+                            //Found l_otherConfigMdmt pointer
+                            l_errHdl = setMdmt(i_config,
+                                    l_procItr,
+                                    l_drwItr);
+                            if(l_errHdl)
+                            {
+                                TOD_ERR("Error setting proc 0x%.8X on "
+                                        "TOD drawer 0x%.2X as MDMT "
+                                        "for config 0x%.2X",
+                                        GETHUID(l_procItr->getTarget()),
+                                        l_drwItr->getId(),
+                                        i_config);
+                            }
+                            break;
+                        }
+                    }
+                    if(iv_todConfig[i_config].iv_mdmt)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            TOD_INF("No MDMT configured for other config(0x%.2X) yet",
+                    l_oppConfig);
+
+            uint32_t l_coreCount = 0;
+            uint32_t l_maxCoreCount = 0;
+            TodProc* l_newMdmt = NULL;
+            TodProc* l_pTodProc = NULL;
+            TodDrawer* l_pTodDrw = NULL;
+
+            //No MDMT configured yet. Our criteria to pick one is to
+            //look at TOD drawers and pick the one with max no of cores
+
+            for (const auto & l_drwItr: l_todDrawerList)
+            {
+                l_pTodProc = NULL;
+                l_coreCount = 0;
+                //Get the list of procs on this TOD drawer that have oscillator
+                //input. Each of them is a potential MDMT, choose the one with
+                //max no. of cores
+                l_drwItr->
+                    getPotentialMdmts(l_procList);
+                l_drwItr->
+                    getProcWithMaxCores(NULL,
+                            l_pTodProc,
+                            l_coreCount,
+                            &l_procList);
+                if(l_coreCount > l_maxCoreCount)
+                {
+                    l_maxCoreCount = l_coreCount;
+                    l_pTodDrw = l_drwItr;
+                    l_newMdmt = l_pTodProc;
+                }
+            }
+
+            if(l_newMdmt)
+            {
+                // If new MDMT, we set the todConfig
+                l_errHdl = setMdmt(i_config,
+                        l_newMdmt,
+                        l_pTodDrw);
+                if(l_errHdl)
+                {
+                    TOD_ERR("Error setting proc 0x%.8X on "
+                            "TOD drawer 0x%.2X as MDMT "
+                            "for config 0x%.2X",
+                            l_newMdmt->getTarget()->
+                            getAttr<TARGETING::ATTR_HUID>(),
+                            l_pTodDrw->getId(),
+                            i_config);
+                }
+            }
+        }
+    }while(0);
+
+    if(!iv_todConfig[i_config].iv_mdmt)
+    {
+        TOD_ERR("MDMT couldn't be chosen for configuration 0x%.2X",
+                i_config);
+
+        /*@
+         * @errortype
+         * @moduleid     TOD_PICK_MDMT
+         * @reasoncode   TOD_MASTER_TARGET_NOT_FOUND
+         * @userdata1    TOD topology type
+         * @devdesc      MDMT could not be chosen for the supplied
+         *               topology type
+         * @custdesc     Host Processor Firmware couldn't detect any
+         *               functional master processor required to boot the host
+         */
+        l_errHdl = new ERRORLOG::ErrlEntry(
+                           ERRORLOG::ERRL_SEV_INFORMATIONAL,
+                           TOD_PICK_MDMT,
+                           TOD_MASTER_TARGET_NOT_FOUND,
+                           i_config);
+    }
+    else
+    {
+        TOD_INF("MDMT for configuration 0x%.2X, is proc 0x%.8X",
+                 i_config,
+                 iv_todConfig[i_config].iv_mdmt->
+                 getTarget()->getAttr<TARGETING::ATTR_HUID>());
+    }
+
+    TOD_EXIT();
+
+    return l_errHdl;
+}
+
+//******************************************************************************
+//TodControls::buildTodDrawers
+//******************************************************************************
+errlHndl_t  TodControls::buildTodDrawers(
+        const p9_tod_setup_tod_sel i_config)
+{
+    TOD_ENTER("buildTodDrawers");
+    errlHndl_t l_errHdl = NULL;
+
+    do{
+
+        TARGETING::TargetHandleList l_funcNodeTargetList;
+
+        //Get the system pointer
+        TARGETING::Target* l_pSysTarget = NULL;
+        (void)TARGETING::targetService().getTopLevelTarget(l_pSysTarget);
+
+        if (NULL == l_pSysTarget)
+        {
+            //We should not be reaching here without a valid system target
+            TOD_ERR_ASSERT("buildTodDrawers: NULL system target ");
+            break;
+        }
+
+        //Build the list of functional nodes
+        l_errHdl =  TOD::TodSvcUtil::getFuncNodeTargetsOnSystem( l_pSysTarget,
+                l_funcNodeTargetList, true);
+        if ( l_errHdl )
+        {
+            TOD_ERR("For System target 0x%08X getFuncNodeTargetsOnSystem "
+                    "returned  error ",l_pSysTarget->
+                    getAttr<TARGETING::ATTR_HUID>());
+            break;
+        }
+
+        //If there was no functional  node found then we must return
+        if ( l_funcNodeTargetList.empty() )
+        {
+            TOD_ERR("For System target 0x%08X no functional node found ",
+                    l_pSysTarget->getAttr<TARGETING::ATTR_HUID>());
+             /*@
+              * @errortype
+              * @moduleid     TOD_BUILD_TOD_DRAWERS
+              * @reasoncode   TOD_NO_FUNC_NODE_AVAILABLE
+              * @userdata1    system target's HUID
+              * @devdesc      MDMT could not find a functional node
+              */
+            l_errHdl = new ERRORLOG::ErrlEntry(
+                               ERRORLOG::ERRL_SEV_INFORMATIONAL,
+                               TOD_BUILD_TOD_DRAWERS,
+                               TOD_NO_FUNC_NODE_AVAILABLE,
+                               l_pSysTarget->getAttr<ATTR_HUID>());
+            break;
+        }
+
+        //For each node target find the prcessor chip on it
+        TARGETING::TargetHandleList l_funcProcTargetList;
+
+        TARGETING::PredicateCTM
+            l_procCTM(TARGETING::CLASS_CHIP,TARGETING::TYPE_PROC);
+
+        TARGETING::PredicateHwas l_funcPred;
+        l_funcPred.functional(true);
+        TARGETING::PredicatePostfixExpr l_funcProcPostfixExpr;
+        l_funcProcPostfixExpr.push(&l_procCTM).push(&l_funcPred).And();
+
+        TodDrawerContainer& l_todDrawerList =
+            iv_todConfig[i_config].iv_todDrawerList;
+        TodDrawerContainer::iterator l_todDrawerIter;
+        bool b_foundDrawer = false;
+
+        for( uint32_t l_nodeIndex = 0;
+                l_nodeIndex < l_funcNodeTargetList.size();
+                ++l_nodeIndex )
+        {
+            l_funcProcTargetList.clear();
+
+            //Find the funcational Proc targets on the system
+            TARGETING::targetService().getAssociated(l_funcProcTargetList,
+                    l_funcNodeTargetList[l_nodeIndex],
+                    TARGETING::TargetService::CHILD,
+                    TARGETING::TargetService::ALL,
+                    &l_funcProcPostfixExpr);
+
+            //Go over the list of procs and insert them in respective TOD drawer
+            for ( uint32_t l_procIndex =0 ;
+                    l_procIndex < l_funcProcTargetList.size();
+                    ++l_procIndex )
+            {
+                b_foundDrawer = false;
+
+                //Get the ordinal id of the parent node and find if there is an
+                //existing TOD drawer whose id matches with the ordinal id of
+                //this node
+                for ( l_todDrawerIter = l_todDrawerList.begin() ;
+                        l_todDrawerIter != l_todDrawerList.end() ;
+                        ++l_todDrawerIter)
+                {
+                    if ( (*l_todDrawerIter)->getId() ==
+                            l_funcNodeTargetList[l_nodeIndex]->
+                            getAttr<TARGETING::ATTR_ORDINAL_ID>())
+                    {
+                        //Add the proc to this TOD drawer, such that
+                        //TodProc has the target pointer and the pointer to
+                        //the TOD drawer to which it belongs
+                        TodProc *l_procPtr =
+                            new TodProc
+                            (l_funcProcTargetList[l_procIndex],
+                             (*l_todDrawerIter));
+                        (*l_todDrawerIter)->addProc(l_procPtr);
+                        l_procPtr = NULL; //Nullifying the pointer after
+                        //transferring ownership
+
+                        b_foundDrawer = true;
+                        break;
+                    }
+
+                } // end drawer list loop
+
+                if (!b_foundDrawer )
+                {
+                    //Create a new TOD drawer and add it to the TOD drawer list
+                    //Create a TOD drawer with the drawer id same as parent
+                    //node's id , and the pointer to the node target to which
+                    //the TOD drawer belongs
+                    TodDrawer *l_pTodDrawer = new
+                        TodDrawer(l_funcNodeTargetList[l_nodeIndex]->
+                                getAttr<TARGETING::ATTR_ORDINAL_ID>(),
+                                l_funcNodeTargetList[l_nodeIndex]);
+
+                    //Create a TodProc passing the target pointer and the
+                    //pointer of TodDrawer to which this processor belongs
+                    TodProc *l_pTodProc = new
+                        TodProc(l_funcProcTargetList[l_procIndex],
+                                l_pTodDrawer);
+
+                    //push the processor ( TodProc ) , into the TOD drawer
+                    l_pTodDrawer->addProc(l_pTodProc);
+
+                    //push the Tod drawer ( TodDrawer ) , into the
+                    //TodControls
+                    l_todDrawerList.push_back(l_pTodDrawer);
+                    //Delete the pointers after transfering the ownership
+                    l_pTodDrawer = NULL;
+                    l_pTodProc = NULL;
+
+                }
+
+            }// end proc list loop
+
+        } // end node list loop
+
+        //Validate that we had at least one TOD drawer at the end of this process
+        //else generate an error
+        if (iv_todConfig[i_config].iv_todDrawerList.empty())
+        {
+            TOD_ERR("No TOD drawer could be built for the configuration "
+                    " %s ", (i_config == TOD_PRIMARY) ? "Primary": "Secondary");
+            /*@
+             * @errortype
+             * @moduleid     TOD_BUILD_TOD_DRAWERS
+             * @reasoncode   TOD_NO_DRAWERS
+             * @userdata1    TOD configuration
+             * @devdesc      No TOD drawer could be configured for this topology
+             *               type
+             * @custdesc     Host failed to boot because there was a problem
+             *               configuring Time Of Day on the Host processors
+             */
+             l_errHdl = new ERRORLOG::ErrlEntry(
+                               ERRORLOG::ERRL_SEV_UNRECOVERABLE,
+                               TOD_BUILD_TOD_DRAWERS,
+                               TOD_NO_DRAWERS,
+                               i_config);
+        }
+
+    }while(0);
+    TOD_EXIT("buildTodDrawers");
+    return l_errHdl;
+}
+
+//******************************************************************************
+//TodControls::isTodRunning
+//******************************************************************************
+errlHndl_t TodControls ::isTodRunning(bool& o_isTodRunning)const
+{
+    TOD_ENTER("isTodRunning");
+    errlHndl_t l_errHdl = NULL;
+    TARGETING::Target* l_primaryMdmt=NULL;
+    TARGETING::Target* l_secondaryMdmt=NULL;
+    o_isTodRunning = false;
+
+    do{
+        //Read the TOD HW to get the configured MDMT
+        l_errHdl = getConfiguredMdmt(l_primaryMdmt,l_secondaryMdmt);
+        if ( l_errHdl )
+        {
+            TOD_ERR("Failed getting configured MDMTs" );
+            break;
+        }
+
+        //PHYP starts TOD logic. TOD logic can be started using either primary
+        //or secondary TOD configuration, if both configuration exist primary
+        //topology is considered for starting TOD logic. After the TOD logic is
+        //started successfully, TOD FSM ( finite state machine ) register will
+        //report the TOD status as running.
+
+        //If there is atleast one MDMT
+        //configured , check the chipTOD HW status by reading the TOD
+        //register PERV_TOD_FSM_REG
+
+        fapi2::variable_buffer l_primaryMdmtBuf(64);
+        l_primaryMdmtBuf.flush<0>();
+        fapi2::variable_buffer l_secondaryMdmtBuf(64);
+        l_secondaryMdmtBuf.flush<0>();
+
+        if ( l_primaryMdmt )
+        {
+            l_errHdl = todGetScom(l_primaryMdmt,
+                    PERV_TOD_FSM_REG,
+                    l_primaryMdmtBuf);
+            if ( l_errHdl )
+            {
+                TOD_ERR("Scom failed for TOD FSM register "
+                        "PERV_TOD_FSM_REG on primary MDMT");
+                break;
+            }
+
+        }
+
+        if ( l_secondaryMdmt )
+        {
+            l_errHdl = todGetScom(l_secondaryMdmt,
+                    PERV_TOD_FSM_REG,
+                    l_secondaryMdmtBuf);
+            if ( l_errHdl )
+            {
+                TOD_ERR("Scom failed for TOD FSM register "
+                       "PERV_TOD_FSM_REG on secondary MDMT");
+                break;
+            }
+        }
+
+        //If the bit 4 of the TOD_FSM_REG related to primary or
+        //secondary topology is set then the chip TOD logic is considered to
+        //be in the running state.
+        if(l_primaryMdmtBuf.isBitSet(TOD_FSM_REG_TOD_IS_RUNNING))
+        {
+            o_isTodRunning = true;
+            TOD_INF("TOD logic is in the running state considering primary"
+                     "topology as active topology");
+        }
+        else if( l_secondaryMdmtBuf.isBitSet(TOD_FSM_REG_TOD_IS_RUNNING) )
+        {
+             o_isTodRunning = true;
+             TOD_INF("TOD logic is in the running state considering"
+                      "secondary topology as active topology");
+        }
+    }while(0);
+
+    TOD_EXIT("TOD HW State = %d",o_isTodRunning);
+    return l_errHdl;
+}
+
+//******************************************************************************
+//TodControls::queryActiveConfig
+//******************************************************************************
+errlHndl_t TodControls ::queryActiveConfig(
+        p9_tod_setup_tod_sel& o_activeConfig,
+        bool& o_isTodRunning,
+        TARGETING::Target*& o_mdmtOnActiveTopology,
+        bool i_determineTodRunningState)const
+{
+    TOD_ENTER();
+    errlHndl_t l_errHdl = NULL;
+    TARGETING::Target* l_primaryMdmt=NULL;
+    TARGETING::Target* l_secondaryMdmt=NULL;
+    o_isTodRunning = false;
+
+    do
+    {
+
+        if ( i_determineTodRunningState )
+        {
+            l_errHdl = isTodRunning(o_isTodRunning);
+            if ( l_errHdl )
+            {
+                TOD_INF("Call to isTodRunning() failed,cannot query active "
+                        "config state");
+                break;
+            }
+        }
+
+        //Read the TOD HW to get the configured MDMT
+        l_errHdl = getConfiguredMdmt(l_primaryMdmt,l_secondaryMdmt);
+        if ( l_errHdl )
+        {
+            TOD_ERR("Failed getting configured MDMTs" );
+            break;
+        }
+
+        //Check for case where no MDMT could be found.. this can happen only
+        //when the method is called before topology was configured
+        if ( ! ( l_primaryMdmt || l_secondaryMdmt ))
+        {
+            TOD_ERR(" Neither primary not Secondary MDMT is configured ");
+            //Return an error
+            /*@
+             * @errortype
+             * @moduleid     TOD_QUERY_ACTIVE_CONFIG
+             * @reasoncode   TOD_NO_VALID_MDMT_FOUND
+             * @devdesc      No valid MDMT found on either topology
+             * @custdesc     Host failed to boot because there was a problem
+             *               configuring Time Of Day on the Host processors
+             */
+            l_errHdl = new ERRORLOG::ErrlEntry(
+                           ERRORLOG::ERRL_SEV_INFORMATIONAL,
+                           TOD_QUERY_ACTIVE_CONFIG,
+                           TOD_NO_VALID_MDMT_FOUND);
+            break;
+
+        }
+
+        //Initialize the output variables, in case TOD is not running then
+        //these values will be returned.
+        o_activeConfig = TOD_PRIMARY;
+
+        if ( l_primaryMdmt )
+        {
+            o_mdmtOnActiveTopology = l_primaryMdmt;
+        }
+        else
+        {
+            o_mdmtOnActiveTopology =  l_secondaryMdmt;
+        }
+
+        //If TOD is running then query the configured MDMT to get the active
+        //configuration data else return Primary as default active
+        //configuration.
+        if (o_isTodRunning)
+        {
+            o_mdmtOnActiveTopology = NULL;
+            //Make it NULL again, since TOD is running we cannot return
+            //l_primaryMdmt as the MDMT on the active topology
+
+            fapi2::variable_buffer l_primaryMdmtBuf(64);
+            l_primaryMdmtBuf.flush<0>();
+            fapi2::variable_buffer l_secondaryMdmtBuf(64);
+            l_secondaryMdmtBuf.flush<0>();
+
+            if ( l_primaryMdmt )
+            {
+                l_errHdl = todGetScom(l_primaryMdmt,
+                        TOD_PSS_MSS_STATUS_REG_00040008,
+                        l_primaryMdmtBuf);
+                if ( l_errHdl )
+                {
+                    TOD_ERR("Scom failed for status register "
+                            "TOD_PSS_MSS_STATUS_REG_00040008 on primary "
+                            " MDMT");
+                    break;
+                }
+
+                //Check First 3 bits of TOD_PSS_MSS_STATUS_REG_00040008
+                //indicates active TOD topology
+                //[0:2] == '111' secondary, '000' is primary
+                //just check bit 0
+                if( l_primaryMdmtBuf.isBitSet
+                        (TOD_PSS_MSS_STATUS_REG_00040008_ACTIVE_BIT))
+                {
+                    TOD_INF("Primary MDMT  0x%08X is indicating active "
+                            " configuration as TOD_PRIMARY ",
+                            GETHUID(l_secondaryMdmt));
+                    o_activeConfig = TOD_SECONDARY;
+                    o_mdmtOnActiveTopology = l_secondaryMdmt;
+                }
+                else
+                {
+                    o_mdmtOnActiveTopology = l_primaryMdmt;
+                }
+                //else Primary Topology is considered active
+            }
+            //If Primary Mdmt is not present then querying the secondaryMdmt.
+            else if ( l_secondaryMdmt )
+            {
+                l_errHdl = todGetScom(l_secondaryMdmt,
+                        PERV_TOD_PSS_MSS_STATUS_REG,
+                        l_secondaryMdmtBuf);
+                if ( l_errHdl )
+                {
+                    TOD_ERR("Scom failed for status register "
+                            "TOD_PSS_MSS_STATUS_REG_00040008 on secondary "
+                            "  MDMT");
+                    break;
+                }
+
+                //Check First 3 bits of TOD_PSS_MSS_STATUS_REG_00040008
+                //indicates active TOD topology
+                // [0:2] == '111' secondary, '000' is primary -
+                //just check bit 0
+                if ( l_secondaryMdmtBuf.isBitSet
+                        (TOD_PSS_MSS_STATUS_REG_00040008_ACTIVE_BIT))
+                {
+                    TOD_INF("Secondary MDMT  0x%08X is indicating active "
+                            " configuration as TOD_SECONDARY ",
+                            GETHUID(l_secondaryMdmt));
+                    o_activeConfig = TOD_SECONDARY;
+                    o_mdmtOnActiveTopology = l_secondaryMdmt;
+                }
+                else
+                {
+                    o_mdmtOnActiveTopology = l_primaryMdmt;
+                }
+            }
+
+            //It is highly unlikely that PRIMARY topology says SECONDARY is
+            //active however we don't have MDMT on the secondary topology.
+            if ( !o_mdmtOnActiveTopology )
+            {
+                TOD_ERR("Active topology found but could not get the MDMT "
+                        " on active TOPOLOGY ");
+
+                /*@
+                 * @errortype
+                 * @moduleid     TOD_QUERY_ACTIVE_CONFIG
+                 * @reasoncode   TOD_NO_MDMT_ON_ACTIVE_CONFIG
+                 * @userdata1    Active configuration
+                 * @devdesc      MDMT not found on active toplology
+                 * @custdesc     Service Processor Firmware encountered an
+                 *               internal error
+                 */
+                l_errHdl = new ERRORLOG::ErrlEntry(
+                           ERRORLOG::ERRL_SEV_INFORMATIONAL,
+                           TOD_QUERY_ACTIVE_CONFIG,
+                           TOD_NO_MDMT_ON_ACTIVE_CONFIG,
+                           o_activeConfig);
+                break;
+            }
+        }//isTodRunning check
+
+    }while(0);
+
+    //If TOD logic is running and no failure is hit in the code above.
+    if( l_errHdl == NULL )
+    {
+        if (o_isTodRunning)
+        {
+            if ( o_activeConfig == TOD_PRIMARY )
+            {
+                TOD_INF("Primary topology is considered as active ");
+            }
+            else if( o_activeConfig == TOD_SECONDARY)
+            {
+                TOD_INF("Secondary topology is considered as active");
+            }
+        }
+        else
+        {
+            if ( i_determineTodRunningState )
+            {
+                TOD_INF("TOD logic is not in the running state!!");
+            }
+        }
+    }
+    else
+    {
+        TOD_ERR("Failed to get TOD running state and active configuration"
+                "details!!");
+    }
+
+    TOD_EXIT();
+    return l_errHdl;
+}
+
+//******************************************************************************
+//TodControls::getConfiguredMdmt
+//******************************************************************************
+errlHndl_t TodControls ::getConfiguredMdmt(
+        TARGETING::Target*& o_primaryMdmt,
+        TARGETING::Target*& o_secondaryMdmt) const
+{
+    TOD_ENTER("getConfiguredMdmt");
+    errlHndl_t l_errHdl = NULL;
+    o_primaryMdmt = NULL;
+    o_secondaryMdmt = NULL;
+
+    do
+    {
+        //Find MDMT for primary and secondary topology from HW
+
+        //Get the functional procs on the system
+        TARGETING::PredicateCTM
+            l_procFilter(TARGETING::CLASS_CHIP,TARGETING::TYPE_PROC,
+                    TARGETING::MODEL_NA);
+
+        TARGETING::PredicateHwas l_funcPred;
+        l_funcPred.functional(true);
+
+        TARGETING::PredicatePostfixExpr l_stateAndProcChipFilter;
+        l_stateAndProcChipFilter.push(&l_procFilter).
+            push(&l_funcPred).And();
+
+        TARGETING::TargetHandleList l_procTargetList;
+        //fapi2 data buffer for TOD register
+        fapi2::variable_buffer l_todStatusReg(64);
+
+        /* TOD_PSS_MSS_STATUS_REG_00040008 has the following interpretation
+         * Primary configuration
+         * TOD_STATUS[13]   TOD_STATUS[14]  Inference
+         *      1               1          Master TOD Master Drawer
+         *      0               1          Slave TOD Master Drawer
+         *      0               0          Slave TOD Slave Drawer
+         *      1               0          Master TOD Slave Drawer
+         *
+         * Secondary configuration
+         * TOD_STATUS[17]    TOD_STATUS[18] Inference
+         *                                  Same as for primary
+         */
+
+        TARGETING::TargetRangeFilter l_filter(
+                TARGETING::targetService().begin(),
+                TARGETING::targetService().end(),
+                &l_stateAndProcChipFilter);
+
+        //Read the TOD status register TOD_PSS_MSS_STATUS_REG_00040008 for each
+        //processor and check the TOD and Drawer bits
+        for (   ; l_filter; ++l_filter  )
+        {
+            l_errHdl = todGetScom(*l_filter,
+                    PERV_TOD_PSS_MSS_STATUS_REG,
+                    l_todStatusReg);
+
+            if ( l_errHdl )
+            {
+                TOD_ERR("Scom failed for target 0x%08X on register"
+                        " TOD_PSS_MSS_STATUS_REG_00040008 ",
+                        (*l_filter)->getAttr<TARGETING::ATTR_HUID>());
+                break;
+            }
+
+            if (
+                    l_todStatusReg.isBitSet(
+                        TOD_PSS_MSS_STATUS_REG_00040008_PRI_M_S_TOD_SEL)
+                    &&
+                    l_todStatusReg.isBitSet(
+                        TOD_PSS_MSS_STATUS_REG_00040008_PRI_M_S_DRAWER_SEL ) )
+            {
+                o_primaryMdmt = *l_filter;
+                TOD_INF("found primary MDMT HUID = 0x%08X",
+                        o_primaryMdmt->getAttr<TARGETING::ATTR_HUID>());
+            }
+
+            if (
+                l_todStatusReg.isBitSet(
+                        TOD_PSS_MSS_STATUS_REG_00040008_SEC_M_S_TOD_SEL )
+                &&
+                l_todStatusReg.isBitSet(
+                       TOD_PSS_MSS_STATUS_REG_00040008_SEC_M_S_DRAWER_SEL ) )
+            {
+                o_secondaryMdmt = *l_filter;
+                TOD_INF("found secondary MDMT HUID = 0x%08X",
+                        o_secondaryMdmt->getAttr<TARGETING::ATTR_HUID>());
+
+            }
+
+            if ( o_primaryMdmt && o_secondaryMdmt )
+            {
+                break;
+            }
+        }
+
+    }while(0);
+
+    TOD_EXIT();
+    return l_errHdl;
+}
+
+//******************************************************************************
+//TodControls::destroy
+//******************************************************************************
+void TodControls ::destroy(const p9_tod_setup_tod_sel i_config)
+{
+    TOD_ENTER("TodControls::destroy");
+
+    for(TodDrawerContainer::iterator l_itr =
+            iv_todConfig[i_config].iv_todDrawerList.begin();
+            l_itr != iv_todConfig[i_config].iv_todDrawerList.end();
+            ++l_itr)
+    {
+        if(*l_itr)
+        {
+            delete (*l_itr);
+        }
+    }
+    iv_todConfig[i_config].iv_todDrawerList.clear();
+    iv_todConfig[i_config].iv_mdmt = NULL;
+    iv_todConfig[i_config].iv_isConfigured = false;
+    iv_todChipDataVector.clear();
+    iv_BlackListedProcs.clear();
+    iv_gardedTargets.clear();
+
+    TOD_EXIT();
+}
+
+//******************************************************************************
+//TodControls::writeTodProcData
+//******************************************************************************
+errlHndl_t TodControls :: writeTodProcData(
+        const p9_tod_setup_tod_sel i_config)
+{
+    TOD_ENTER("TodControls::writeTodProcData");
+    errlHndl_t l_errHdl = NULL;
+
+    do{
+
+        //As per the requirement specified by PHYP/HDAT, TOD needs to fill
+        //data for every chip that can be installed on the system.
+        //It is also required that chip ID match the index of the entry in the
+        //array so we can possibly have valid chip data at different indexes in
+        //the array and the intermittent locations filled with the chip entries
+        //that does not exist on the system. All such entires will have default
+        //non-significant values
+
+        TodChipData blank;
+        uint32_t l_maxProcCount = TOD::TodSvcUtil::getMaxProcsOnSystem();
+        Target* l_target = NULL;
+
+        TOD_INF("Max possible processor chips for this system when configured "
+                "completely is %d",l_maxProcCount);
+
+        iv_todChipDataVector.assign(l_maxProcCount,blank);
+
+        TARGETING::ATTR_ORDINAL_ID_type l_ordId = 0x0;
+        //Ordinal Id of the processors that form the topology
+
+        //Fill the TodChipData structures with the actual value in the
+        //ordinal order
+        for(TodDrawerContainer::iterator l_itr =
+                iv_todConfig[i_config].iv_todDrawerList.begin();
+                l_itr != iv_todConfig[i_config].iv_todDrawerList.end();
+                ++l_itr)
+        {
+            const TodProcContainer&  l_procs =
+                (*l_itr)->getProcs();
+
+            for(TodProcContainer::const_iterator
+                    l_procItr = l_procs.begin();
+                    l_procItr != l_procs.end();
+                    ++l_procItr)
+            {
+                l_ordId =
+                    (*l_procItr)->getTarget()->
+                    getAttr<TARGETING::ATTR_ORDINAL_ID>();
+
+                //Clear the default flag for this chip, defaults to
+                //NON_FUNCTIONAL however this is a functional chip
+                iv_todChipDataVector[l_ordId].header.flags = TOD_NONE;
+
+                //Fill the todChipData structure at position l_ordId
+                //inside iv_todChipDataVector with TOD register data
+                //values
+                (*l_procItr )->setTodChipData(
+                        iv_todChipDataVector[l_ordId]);
+
+                //Set flags to indicate if the proc chip is an MDMT
+                //See if the current proc chip is MDMT of the primary
+                //topology
+                if ( getConfigStatus(TOD_PRIMARY)
+                        &&
+                        getMDMT(TOD_PRIMARY))
+                {
+                    if (
+                            (getMDMT(TOD_PRIMARY)->getTarget()->
+                             getAttr<TARGETING::ATTR_HUID>())
+                            ==
+                            ((*l_procItr)->getTarget()->
+                             getAttr<TARGETING::ATTR_HUID>())
+                       )
+                    {
+
+                        iv_todChipDataVector[l_ordId].header.flags |=
+                            TOD_PRI_MDMT;
+                    }
+                }
+
+                //See if the current proc chip is MDMT of the secondary
+                //network
+                //Note: The chip can be theoretically both primary and
+                //secondary MDMDT
+                if ( getConfigStatus(TOD_SECONDARY)
+                        &&
+                        getMDMT(TOD_SECONDARY))
+                {
+                    if (
+                            (getMDMT(TOD_SECONDARY)->getTarget()->
+                             getAttr<TARGETING::ATTR_HUID>())
+                            ==
+                            ((*l_procItr)->getTarget()->
+                             getAttr<TARGETING::ATTR_HUID>())
+                       )
+                    {
+
+                        iv_todChipDataVector[l_ordId].header.flags |=
+                            TOD_SEC_MDMT;
+                    }
+
+                }
+
+                ATTR_TOD_CPU_DATA_type l_tod_array;
+                memcpy(l_tod_array,
+                       &iv_todChipDataVector[l_ordId],sizeof(TodChipData));
+
+                l_target = const_cast<Target *>((*l_procItr)->getTarget());
+                l_target->setAttr<ATTR_TOD_CPU_DATA>(l_tod_array);
+            }
+        }
+
+    }while(0);
+
+    TOD_EXIT("writeTodProcData. errHdl = %p", l_errHdl);
+    return l_errHdl;
+
+}//end of writeTodProcData
+
+
+//******************************************************************************
+//TodControls::hasNoValidData()
+//******************************************************************************
+bool TodControls ::hasNoValidData(const std::vector<TodChipData>&
+        i_todChipDataVector)const
+{
+    TOD_ENTER("TodControls::hasNoValidData");
+    bool result = true;
+    for(std::vector<TodChipData>::const_iterator l_iter =
+            i_todChipDataVector.begin();
+            l_iter != i_todChipDataVector.end(); ++l_iter)
+    {
+        if(((*l_iter).header.flags & TOD_FUNC) != 0)
+        {
+            result = false;
+            break;
+        }
+    }
+    TOD_EXIT("hasNoValidData");
+    return result;
+}
+
+//******************************************************************************
+//TodControls::pickMdmt
+//******************************************************************************
+TodProc* TodControls ::pickMdmt(
+                                  const TodProc* i_otherConfigMdmt,
+                                  const p9_tod_setup_tod_sel& i_config,
+                                  const bool i_setMdmt)
+{
+    TOD_ENTER("Other MDMT : 0x%.8X, "
+               "Input config : 0x%.2X",
+               GETHUID(i_otherConfigMdmt->getTarget()),
+               i_config);
+
+    TodProc* l_newMdmt = NULL;
+    TodProc *l_pTodProc = NULL;
+    TodDrawer* l_pMasterDrw = NULL;
+    TodDrawerContainer l_todDrawerList =
+        iv_todConfig[i_config].iv_todDrawerList;
+    TodProcContainer l_procList;
+    uint32_t l_coreCount = 0;
+    uint32_t l_maxCoreCount = 0;
+    errlHndl_t l_errHdl = NULL;
+
+    do
+    {
+        //1.MDMT will be chosen from a node other than the node on which
+        //this MDMT exists, in case of multinode systems
+        //Iterate the list of TOD drawers
+        l_maxCoreCount = 0;
+        for (TodDrawerContainer::iterator l_todDrawerIter =
+                 l_todDrawerList.begin();
+             l_todDrawerIter != l_todDrawerList.end();
+             ++l_todDrawerIter)
+        {
+
+            //TodProc --> TodDrawer --> Node
+            if(i_otherConfigMdmt->getParentDrawer()->getParentNodeTarget()->
+                   getAttr<TARGETING::ATTR_HUID>()
+               !=
+               (*l_todDrawerIter)->getParentNodeTarget()->
+                   getAttr<TARGETING::ATTR_HUID>())
+            {
+                l_pTodProc = NULL;
+                l_coreCount = 0;
+                l_procList.clear();
+                //Get the list of procs on this TOD drawer that have oscillator
+                //input. Each of them is a potential MDMT, choose the one with
+                //max no. of cores
+                (*l_todDrawerIter)->
+                    getPotentialMdmts(l_procList);
+                (*l_todDrawerIter)->
+                    getProcWithMaxCores(NULL,
+                                        l_pTodProc,
+                                        l_coreCount,
+                                        &l_procList);
+                if(l_coreCount > l_maxCoreCount)
+                {
+                    l_newMdmt = l_pTodProc;
+                    l_maxCoreCount = l_coreCount;
+                    l_pMasterDrw = *l_todDrawerIter;
+                }
+            }
+        }
+        if(l_newMdmt && i_setMdmt )
+        {
+            l_errHdl = setMdmt(i_config,
+                               l_newMdmt,
+                               l_pMasterDrw);
+            if(l_errHdl)
+            {
+                TOD_ERR("Error setting proc 0x%.8X on "
+                         "TOD drawer 0x%.2X as MDMT "
+                         "for config 0x%.2X",
+                         l_newMdmt->getTarget()->
+                            getAttr<TARGETING::ATTR_HUID>(),
+                         l_pMasterDrw->getId(),
+                         i_config);
+                errlCommit(l_errHdl, TOD_COMP_ID);
+                l_newMdmt = NULL;
+            }
+            else
+            {
+                TOD_INF("Found MDMT 0x%.8X on different node 0x%.8X",
+                    l_newMdmt->getTarget()->getAttr<TARGETING::ATTR_HUID>(),
+                    l_pMasterDrw->getParentNodeTarget()->
+                        getAttr<TARGETING::ATTR_HUID>());
+                l_pMasterDrw = NULL;
+                break;
+            }
+        }
+
+        //2.Try to find MDMT on a TOD drawer that is on the same physical
+        //node as the possible opposite MDMT but on different TOD drawer
+        l_maxCoreCount = 0;
+        for(const auto & l_todDrawerIter : l_todDrawerList)
+        {
+            if((i_otherConfigMdmt->getParentDrawer()->getParentNodeTarget()->
+                    getAttr<TARGETING::ATTR_HUID>() ==
+               l_todDrawerIter->getParentNodeTarget()->
+                    getAttr<TARGETING::ATTR_HUID>())//Same node
+               &&
+               (i_otherConfigMdmt->getParentDrawer()->getId() !=
+                    l_todDrawerIter->getId()))//Different TOD Drawer
+            {
+                l_pTodProc = NULL;
+                l_coreCount = 0;
+                l_procList.clear();
+                //Get the list of procs on this TOD drawer that have oscillator
+                //input. Each of them is a potential MDMT, choose the one with
+                //max no. of cores
+                l_todDrawerIter->
+                    getPotentialMdmts(l_procList);
+                l_todDrawerIter->
+                    getProcWithMaxCores(NULL,
+                                        l_pTodProc,
+                                        l_coreCount,
+                                        &l_procList);
+                if(l_coreCount > l_maxCoreCount)
+                {
+                    l_newMdmt = l_pTodProc;
+                    l_maxCoreCount = l_coreCount;
+                    l_pMasterDrw = l_todDrawerIter;
+                }
+            }
+        }
+        if(l_newMdmt && i_setMdmt)
+        {
+            l_errHdl = setMdmt(i_config,
+                               l_newMdmt,
+                               l_pMasterDrw);
+            if(l_errHdl)
+            {
+                TOD_ERR("Error setting proc 0x%.8X on "
+                         "TOD drawer 0x%.2X as MDMT "
+                         "for config 0x%.2X",
+                         l_newMdmt->getTarget()->
+                            getAttr<TARGETING::ATTR_HUID>(),
+                         l_pMasterDrw->getId(),
+                         i_config);
+                errlCommit(l_errHdl, TOD_COMP_ID);
+                l_newMdmt = NULL;
+            }
+            else
+            {
+                TOD_INF("Found MDMT 0x%.8X on different TOD drawer 0x%.2X",
+                    l_newMdmt->getTarget()->getAttr<TARGETING::ATTR_HUID>(),
+                    l_pMasterDrw->getId());
+                l_pMasterDrw = NULL;
+                break;
+            }
+        }
+
+        //3.Try to find MDMT on the same TOD drawer as the TOD Drawer of
+        //opposite MDMT
+        l_maxCoreCount = 0;
+        for (const auto l_todDrawerIter : l_todDrawerList)
+        {
+            l_pTodProc = NULL;
+            l_coreCount = 0;
+            l_procList.clear();
+            if(i_otherConfigMdmt->getParentDrawer()->getId() ==
+                  l_todDrawerIter->getId())
+            {
+                //This  is the TOD drawer on which opposite MDMT exists,
+                //try to avoid processor chip of opposite MDMT while
+                //getting the proc with max cores
+                //Get the list of procs on this TOD drawer that have oscillator
+                //input. Each of them is a potential MDMT, choose the one with
+                //max no. of cores
+                l_todDrawerIter->
+                    getPotentialMdmts(l_procList);
+                l_todDrawerIter->getProcWithMaxCores(
+                        i_otherConfigMdmt,
+                        l_pTodProc,
+                        l_coreCount,
+                        &l_procList);
+                l_newMdmt = l_pTodProc;
+                l_pMasterDrw = l_todDrawerIter;
+                break;
+            }
+        }
+        if(l_newMdmt && i_setMdmt)
+        {
+            l_errHdl = setMdmt(i_config,
+                               l_newMdmt,
+                               l_pMasterDrw);
+            if(l_errHdl)
+            {
+                TOD_ERR("Error setting proc 0x%.8X on "
+                         "TOD drawer 0x%.2X as MDMT "
+                         "for config 0x%.2X",
+                         l_newMdmt->getTarget()->
+                            getAttr<TARGETING::ATTR_HUID>(),
+                         l_pMasterDrw->getId(),
+                         i_config);
+                errlCommit(l_errHdl, TOD_COMP_ID);
+                l_newMdmt = NULL;
+            }
+            else
+            {
+                TOD_INF(
+                    "Found another MDMT 0x%.8X on the same TOD drawer 0x%.2X "
+                    "on which i_otherConfigMdmt(0x%.8X) resides",
+                    GETHUID(l_newMdmt->getTarget()),
+                    l_pMasterDrw->getId(),
+                    GETHUID(i_otherConfigMdmt->getTarget()));
+                l_pMasterDrw = NULL;
+                break;
+            }
+        }
+    }while(0);
+
+    TOD_EXIT();
+
+    return l_newMdmt;
+}
+
+//******************************************************************************
+//TodControls::setMdmtOfActiveConfig
+//******************************************************************************
+void  TodControls ::setMdmtOfActiveConfig(
+            const p9_tod_setup_tod_sel i_config,
+            TodProc* i_mdmt,
+            TodDrawer* i_masterDrawer)
+{
+    TOD_ENTER("setMdmtOfActiveConfig");
+
+    do
+    {
+      if ( !i_mdmt )
+      {
+          TOD_ERR_ASSERT("Software error input MDMT must not be NULL");
+          break;
+      }
+
+      if ( !i_masterDrawer )
+      {
+          TOD_ERR_ASSERT("Software error input master drawer must not be "
+          " NULL");
+          break;
+      }
+
+      iv_todConfig[i_config].iv_mdmt = i_mdmt;
+      i_mdmt->setMasterType(TodProc::TOD_MASTER);
+      i_masterDrawer->setMasterDrawer(true);
+
+      TOD_INF("MDMT for configuration 0x%.2X is proc 0x%.8X",
+              i_config,
+              GETHUID(iv_todConfig[i_config].iv_mdmt->getTarget()));
+    } while (0);
+    TOD_EXIT();
+}
+
+//******************************************************************************
+//TodControls::setMdmt
+//******************************************************************************
+errlHndl_t TodControls ::setMdmt(const p9_tod_setup_tod_sel i_config,
+        TodProc* i_mdmt,
+        TodDrawer* i_masterDrawer)
+{
+    TOD_ENTER("setMdmt");
+
+    errlHndl_t l_errHdl = NULL;
+
+    do
+    {
+      if ( !i_mdmt )
+      {
+          TOD_ERR_ASSERT("Software error input MDMT must not be NULL");
+          break;
+      }
+
+      if ( !i_masterDrawer )
+      {
+          TOD_ERR_ASSERT("Software error input master drawer must not be "
+          " NULL");
+          break;
+      }
+
+      iv_todConfig[i_config].iv_mdmt = i_mdmt;
+      i_mdmt->setMasterType(TodProc::TOD_MASTER);
+      i_masterDrawer->setMasterDrawer(true);
+
+      TOD_INF("MDMT for configuration 0x%.2X is proc 0x%.8X, ",
+               i_config,
+               iv_todConfig[i_config].iv_mdmt->
+                   getTarget()->getAttr<TARGETING::ATTR_HUID>());
+
+    } while (0);
+    TOD_EXIT();
+
+    return l_errHdl;
+}
+
+//******************************************************************************
+//isProcBlackListed
+//******************************************************************************
+bool  TodControls::isProcBlackListed (
+        TARGETING::ConstTargetHandle_t i_procTarget
+        )const
+{
+    TOD_ENTER();
+
+    bool l_blackListed = false;
+
+    do
+    {
+      if(!i_procTarget)
+      {
+          TOD_ERR_ASSERT("Input target cannot be NULL for "
+                  "isProcBlackListed");
+          break;
+      }
+
+      if (
+              ( GETCLASS(i_procTarget) != TARGETING::CLASS_CHIP )
+              ||
+              ( GETTYPE(i_procTarget) != TARGETING::TYPE_PROC))
+      {
+          TOD_ERR_ASSERT("Only processor target allowed as input for "
+                  " isProcBlackListed ");
+          break;
+      }
+
+      if(iv_BlackListedProcs.end() != std::find(
+          iv_BlackListedProcs.begin(),
+          iv_BlackListedProcs.end(),
+          i_procTarget))
+      {
+          TOD_INF("Proc 0x%.8X is blacklisted!", GETHUID(i_procTarget));
+          l_blackListed = true;
+      }
+    } while (0);
+    TOD_EXIT();
+
+    return l_blackListed;
+}
+
+//******************************************************************************
+//buildGardedTargetsList
+//******************************************************************************
+errlHndl_t TodControls::buildGardedTargetsList()
+{
+    TOD_ENTER("buildGardedTargetsList");
+    errlHndl_t l_errHdl = NULL;
+    iv_gardListInitialized = false;
+    clearGardedTargetsList();
+
+    do
+    {
+        TARGETING::Target* l_pSystemTarget = NULL;
+        TARGETING::targetService().getTopLevelTarget(l_pSystemTarget);
+        if ( !l_pSystemTarget )
+        {
+            TOD_ERR_ASSERT("System target could not be found");
+            break;
+        }
+
+        GardedUnitList_t l_gardedUnitList;
+        l_errHdl = gardGetGardedUnits(l_pSystemTarget,l_gardedUnitList);
+        if ( l_errHdl )
+        {
+            TOD_ERR("Error getting garded units.");
+            break;
+        }
+        else
+        {
+            for(const auto & l_iter : l_gardedUnitList)
+            {
+                //Push the HUID to the set of garded targets
+                iv_gardedTargets.push_back(l_iter.iv_huid);
+                TOD_INF("Adding 0x%08X to the garded list of targets",
+                        l_iter.iv_huid);
+            }
+
+
+        }
+
+    }while(0);
+
+    if ( !l_errHdl )
+    {
+        iv_gardListInitialized = true;
+    }
+    TOD_EXIT();
+    return l_errHdl;
+
+}
+
+
+//******************************************************************************
+//checkGardStatusOfTarget
+//******************************************************************************
+errlHndl_t TodControls::checkGardStatusOfTarget(
+        TARGETING::ConstTargetHandle_t i_target,
+        bool&  o_isTargetGarded )
+{
+    TOD_ENTER("checkGardStatusOfTarget");
+    errlHndl_t l_errHdl = NULL;
+    o_isTargetGarded  = false;
+
+    do{
+
+        if ( !iv_gardListInitialized )
+        {
+            TOD_INF("Local cache of garded targets is not initialized "
+            " the gard status will be retrieved from system model");
+        }
+        else
+        {
+            if (iv_gardedTargets.end() != std::find(
+                iv_gardedTargets.begin(),
+                iv_gardedTargets.end(),
+                (GETHUID(i_target))))
+            {
+                o_isTargetGarded = true;
+            }
+
+        }
+
+    }while(0);
+
+    TOD_EXIT("Target 0x%08X is %s",
+            GETHUID(i_target),o_isTargetGarded?"garded":"not garded");
+    return l_errHdl;
+}
+
+const char *TodControls::getPhysicalPathString(
+        const TARGETING::ATTR_PHYS_PATH_type &i_path)
+{
+    const char *l_str  = i_path.toString();
+    return l_str;
+}
+
+/******************************************************************************/
+// gardGetGardedUnits
+/******************************************************************************/
+errlHndl_t TodControls::gardGetGardedUnits(
+        const TARGETING::Target* const i_pTarget,
+        GardedUnitList_t &o_gardedUnitList)
+{
+    TOD_ENTER("gardGetGardedUnits");
+    errlHndl_t l_err = NULL;
+    o_gardedUnitList.clear();
+    do
+    {
+        HWAS::DeconfigGard::GardRecords_t l_gardRecords;
+        l_err = HWAS::theDeconfigGard().getGardRecords(i_pTarget,
+                l_gardRecords);
+        if(l_err != NULL)
+        {
+            TOD_ERR("Error getting gard records for HUID :[0x%08X]",
+                    GETHUID(i_pTarget));
+
+            break;
+        }
+
+        for(const auto & l_iter : l_gardRecords)
+        {
+            TARGETING::Target * l_pTarget = NULL;
+
+            l_err = getTargetFromPhysicalPath(l_iter.iv_targetId,
+                               l_pTarget);
+            if(l_err != NULL)
+            {
+                TOD_ERR("Error finding target");
+                break;
+            }
+            GardedUnit_t l_gardedUnit;
+            memset(&l_gardedUnit,0,sizeof(GardedUnit_t));
+            l_gardedUnit.iv_huid =
+                    l_pTarget->getAttr<TARGETING::ATTR_HUID>();
+            TARGETING::Target *l_pNodeTarget = NULL;
+            if((l_pTarget->getAttr<TARGETING::ATTR_CLASS>() ==
+                                    TARGETING::CLASS_ENC)&&
+               (l_pTarget->getAttr<TARGETING::ATTR_TYPE>() ==
+                                    TARGETING::TYPE_NODE))
+            {
+                l_pNodeTarget = l_pTarget;
+            }
+            else
+            {
+                l_err = getParent(l_pTarget,
+                    TARGETING::CLASS_ENC,
+                    l_pNodeTarget);
+                if(l_err != NULL)
+                {
+                    TOD_ERR("Error getting parent node, HUID:[0x%08X]",
+                                l_pTarget->getAttr<TARGETING::ATTR_HUID>());
+
+                    break;
+                }
+            }
+            l_gardedUnit.iv_nodeHuid =
+                    l_pNodeTarget->getAttr<TARGETING::ATTR_HUID>();
+            l_gardedUnit.iv_errlogId =
+                    l_iter.iv_errlogEid;
+            l_gardedUnit.iv_errType =
+                    static_cast<HWAS::GARD_ErrorType>(l_iter.iv_errorType);
+            l_gardedUnit.iv_domain =
+                    l_pTarget->getAttr<TARGETING::ATTR_CDM_DOMAIN>();
+            l_gardedUnit.iv_type =
+                    l_pTarget->getAttr<TARGETING::ATTR_TYPE>();
+
+            l_gardedUnit.iv_class =
+                    l_pTarget->getAttr<TARGETING::ATTR_CLASS>();
+
+            o_gardedUnitList.push_back(l_gardedUnit);
+        }
+        if(l_err != NULL)
+        {
+            break;
+        }
+    }
+    while(0);
+    if(l_err != NULL)
+    {
+        o_gardedUnitList.clear();
+    }
+    TOD_EXIT();
+    return l_err;
+}
+
+//******************************************************************************
+// getTargetFromPhysicalPath
+//******************************************************************************
+
+errlHndl_t TodControls::getTargetFromPhysicalPath(
+    const TARGETING::ATTR_PHYS_PATH_type &i_path,
+          TARGETING::Target*&  o_pTarget)
+
+{
+    TOD_ENTER("getTargetFromPhysicalPath");
+    errlHndl_t l_err = NULL;
+    do
+    {
+        o_pTarget =
+                TARGETING::targetService().toTarget(i_path);
+        if(o_pTarget == NULL)
+        {
+            TOD_ERR("Error in getting target from entity path[%s]",
+                        getPhysicalPathString(i_path));
+            /*@
+            * @errortype
+            * @moduleid     TOD_CONTROLS_GET_TARGET
+            * @reasoncode   TOD_NULL_INPUT_TARGET
+            * @devdesc      Target ID is invalid
+            * @custdesc     Service Processor Firmware encountered an internal
+            *               error
+            */
+            l_err = new ERRORLOG::ErrlEntry(
+                         ERRORLOG::ERRL_SEV_INFORMATIONAL,
+                         TOD_CONTROLS_GET_TARGET,
+                         TOD_NULL_INPUT_TARGET);
+            break;
+        }
+    }
+    while(0);
+    TOD_EXIT();
+    return l_err;
+}
+
+//******************************************************************************
+// getParent
+//******************************************************************************
+
+errlHndl_t TodControls::getParent(const TARGETING::Target *i_pTarget,
+                     const TARGETING::CLASS i_class,
+                     TARGETING::Target *& o_parent_target)
+{
+
+    //--------------------------------------------------------------------------
+    // Local Variables
+    //--------------------------------------------------------------------------
+    bool l_parent_found = false;
+    errlHndl_t l_errl = NULL;
+    TARGETING::TargetHandleList l_list;
+    // Initializing l_parentTarget here in-order to eliminate goto compilation
+    // error below
+    const TARGETING::Target * l_parentTarget = i_pTarget;
+    TARGETING::ATTR_TYPE_type l_type = TARGETING::TYPE_NA;
+    TARGETING::ATTR_CLASS_type l_class = TARGETING::CLASS_NA;
+
+    //--------------------------------------------------------------------------
+    // Code
+    //--------------------------------------------------------------------------
+    TOD_ENTER("getParent");
+
+    do
+    {
+        // If i_pTarget is NULL then create an error log
+        if(!i_pTarget)
+        {
+            TOD_ERR("Input Target handle is null");
+
+            //Create error
+            /*@
+             * @errortype
+             * @moduleid     TOD_UTIL_MOD_GET_PARENT
+             * @reasoncode   TOD_NULL_INPUT_TARGET
+             * @devdesc      NULL Target is supplied as input
+             * @custdesc     Service Processor Firmware encountered an internal
+             *               error
+             */
+            l_errl = new ERRORLOG::ErrlEntry(
+                         ERRORLOG::ERRL_SEV_INFORMATIONAL,
+                         TOD_UTIL_MOD_GET_PARENT,
+                         TOD_NULL_INPUT_TARGET);
+            break;
+        }
+
+        // If we have a valid target, check if it is system
+        l_type = i_pTarget->getAttr<TARGETING::ATTR_TYPE>();
+
+        l_class = i_pTarget->getAttr<TARGETING::ATTR_CLASS>();
+
+        if((TARGETING::CLASS_SYS == l_class) &&
+            (TARGETING::TYPE_SYS == l_type))
+        {
+            TOD_ERR("Input target is SYSTEM which cannot have a parent target."
+                 "Class [0x%08X], Type [0x%08X]",
+                 static_cast<uint32_t>(l_class),
+                 static_cast<uint32_t>(l_type));
+
+            //Create error
+            /*@
+             * @errortype
+             * @moduleid     TOD_UTIL_MOD_GET_PARENT
+             * @reasoncode   TOD_INVALID_TARGET
+             * @userdata1    HUID of the input target
+             * @devdesc      Invalid target is supplied as input,
+             *               SYSTEM target has no parent
+             * @custdesc     Service Processor Firmware encountered an internal
+             *               error
+             */
+
+            l_errl = new ERRORLOG::ErrlEntry(
+                         ERRORLOG::ERRL_SEV_INFORMATIONAL,
+                         TOD_UTIL_MOD_GET_PARENT,
+                         TOD_INVALID_TARGET,
+                         GETHUID(i_pTarget));
+
+            break;
+        }
+
+
+        // Clear existing elements of l_list, just to make sure, though
+        // getAssociated() clears l_list below when it gets called
+        l_list.clear();
+
+        // Get the immediate parent
+        TARGETING::targetService().getAssociated(l_list, l_parentTarget,
+                TARGETING::TargetService::PARENT,
+                TARGETING::TargetService::IMMEDIATE);
+
+        if (l_list.size() != 1)
+        {
+            // Parent not found
+            break;
+        }
+        else
+        {
+            // Copy parent from list
+            l_parentTarget = l_list[0];
+
+            // Check input CLASS with parent CLASS
+            if ((i_class == TARGETING::CLASS_NA) ||
+                (i_class == l_parentTarget->getAttr<TARGETING::ATTR_CLASS>()))
+            {
+                // Remove const-ness of l_parentTarget in-order to copy it to
+                // o_parent_target, which is not a const
+                o_parent_target =
+                    const_cast<TARGETING::Target *>(l_parentTarget);
+                l_parent_found = true;
+                break;
+            }
+        }
+    }while(0);
+
+    // Create an error log if parent is not found
+    if(!l_parent_found)
+    {
+
+        //Create error
+        /*@
+         * @errortype
+         * @moduleid     TOD_UTIL_MOD_GET_PARENT
+         * @reasoncode   TOD_PARENT_NOT_FOUND
+         * @userdata1    HUID of supplied Target
+         * @userdata2[0:31]  Size of the list
+         * @userdata2[32:63] Input CLASS
+         * @devdesc      Parent of input CLASS for supplied Target is not found
+         * @custdesc     Service Processor Firmware encountered an internal
+         *               error
+         */
+         l_errl = new ERRORLOG::ErrlEntry(
+                          ERRORLOG::ERRL_SEV_INFORMATIONAL,
+                          TOD_UTIL_MOD_GET_PARENT,
+                          TOD_PARENT_NOT_FOUND,
+                          GETHUID(i_pTarget),
+                          TWO_UINT32_TO_UINT64(l_list.size(), i_class));
+
+         // Assert will R/R the FSP, set the R/R bit in this error
+         // to indicate that this error is responsible for the R/R
+         //l_errl->setRsrlBit(true);
+
+         TOD_ERR_ASSERT(0, "ERROR - Parent not found for the supplied target."
+                        "Supplied target's HUID: 0x%08X",
+                        GETHUID(i_pTarget));
+
+    }
+
+    TOD_EXIT();
+    return l_errl;
+
+}
+
+// Wrapper function for TodControls::getDrawers instance
+void getDrawers(const p9_tod_setup_tod_sel i_config,
+     TodDrawerContainer& o_drawerList)
+{
+    Singleton<TodControls>::instance().getDrawers(i_config, o_drawerList);
+}
+
+// Wrapper function for TodControls::isProcBlackListed instance
+bool isProcBlackListed (TARGETING::ConstTargetHandle_t i_procTarget)
+{
+    return Singleton<TodControls>::instance().isProcBlackListed(
+        i_procTarget);
+}
+
+// Wrapper function for TodControls::getMDMT instance
+TodProc* getMDMT(const p9_tod_setup_tod_sel i_config)
+{
+    return Singleton<TodControls>::instance().getMDMT(i_config);
+}
+
+// Wrapper function for TodControls::pickMdmt instance
+errlHndl_t pickMdmt(const p9_tod_setup_tod_sel i_config)
+{
+    return Singleton<TodControls>::instance().pickMdmt(i_config);
+}
+
+// Wrapper function for TodControls::isTodRunning instance
+errlHndl_t isTodRunning ( bool& o_isTodRunning)
+{
+    return Singleton<TodControls>::instance().isTodRunning(o_isTodRunning);
+}
+
+// Wrapper function for TodControls::checkGardStatusOfTarget instance
+errlHndl_t checkGardStatusOfTarget(TARGETING::ConstTargetHandle_t i_target,
+    bool&  o_isTargetGarded)
+{
+    return Singleton<TodControls>::instance().checkGardStatusOfTarget(
+        i_target, o_isTargetGarded);
+}
+
+// Wrapper function for TodControls::destroy instance
+void destroy(const p9_tod_setup_tod_sel i_config)
+{
+    Singleton<TodControls>::instance().destroy(i_config);
+}
+
+// Wrapper function for TodControls::buildTodDrawers instance
+errlHndl_t buildTodDrawers(const p9_tod_setup_tod_sel i_config)
+{
+    return Singleton<TodControls>::instance().buildTodDrawers(i_config);
+}
+
+// Wrapper function for TodControls::buildGardedTargetsList instance
+errlHndl_t buildGardedTargetsList()
+{
+    return Singleton<TodControls>::instance().buildGardedTargetsList();
+}
+
+// Wrapper function for TodControls::setConfigStatus instance
+void setConfigStatus(const p9_tod_setup_tod_sel i_config,
+                        const bool i_isConfigured )
+{
+    Singleton<TodControls>::instance().setConfigStatus(i_config, i_isConfigured);
+}
+
+// Wrapper function for TodControls::getConfiguredMdmt instance
+errlHndl_t getConfiguredMdmt(TARGETING::Target*& o_primaryMdmt,
+              TARGETING::Target*& o_secondaryMdmt)
+{
+    return Singleton<TodControls>::instance().getConfiguredMdmt(o_primaryMdmt,
+        o_secondaryMdmt);
+}
+
+// Wrapper function for TodControls::writeTodProcData instance
+errlHndl_t writeTodProcData(const p9_tod_setup_tod_sel i_config)
+{
+    return Singleton<TodControls>::instance().writeTodProcData(i_config);
+}
+
+void  clearGardedTargetsList()
+{
+    Singleton<TodControls>::instance().clearGardedTargetsList();
+}
+
+// Wrapper function for TodControls::queryActiveConfig instance
+errlHndl_t queryActiveConfig(p9_tod_setup_tod_sel& o_activeConfig,
+    bool& o_isTodRunning,
+    TARGETING::Target*& o_mdmtOnActiveTopology,
+    bool i_determineTodRunningState)
+{
+    return Singleton<TodControls>::instance().queryActiveConfig(o_activeConfig,
+        o_isTodRunning, o_mdmtOnActiveTopology, i_determineTodRunningState);
+}
+
+// Wrapper function for TodControls::setMdmtOfActiveConfig instance
+void setMdmtOfActiveConfig(const p9_tod_setup_tod_sel i_config,
+             TodProc* i_proc,
+             TodDrawer* i_drawer)
+{
+    return Singleton<TodControls>::instance().setMdmtOfActiveConfig(i_config,
+    i_proc, i_drawer);
+}
+
+}//end of namespace

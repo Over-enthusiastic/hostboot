@@ -1,0 +1,261 @@
+<!-- IBM_PROLOG_BEGIN_TAG                                                   -->
+<!-- This is an automatically generated prolog.                             -->
+<!--                                                                        -->
+<!-- $Source: src/usr/targeting/common/xmltohb/target_types_hb.xml $        -->
+<!--                                                                        -->
+<!-- OpenPOWER HostBoot Project                                             -->
+<!--                                                                        -->
+<!-- Contributors Listed Below - COPYRIGHT 2012,2017                        -->
+<!-- [+] Google Inc.                                                        -->
+<!-- [+] International Business Machines Corp.                              -->
+<!--                                                                        -->
+<!--                                                                        -->
+<!-- Licensed under the Apache License, Version 2.0 (the "License");        -->
+<!-- you may not use this file except in compliance with the License.       -->
+<!-- You may obtain a copy of the License at                                -->
+<!--                                                                        -->
+<!--     http://www.apache.org/licenses/LICENSE-2.0                         -->
+<!--                                                                        -->
+<!-- Unless required by applicable law or agreed to in writing, software    -->
+<!-- distributed under the License is distributed on an "AS IS" BASIS,      -->
+<!-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        -->
+<!-- implied. See the License for the specific language governing           -->
+<!-- permissions and limitations under the License.                         -->
+<!--                                                                        -->
+<!-- IBM_PROLOG_END_TAG                                                     -->
+
+<attributes>
+
+<!-- =====================================================================
+     HOST BOOT TARGETS
+     Contains the definition of the different types of Hostboot targets
+     and target type extensions to add attributes to common target types
+     ================================================================= -->
+<targetTypeExtension>
+    <id>sys-sys-power9</id>
+    <attribute><id>IS_MPIPL_HB</id></attribute>
+    <attribute><id>IBSCOM_ENABLE_OVERRIDE</id></attribute>
+    <attribute><id>HB_MUTEX_TEST_LOCK</id></attribute>
+    <attribute><id>HB_EXISTING_IMAGE</id></attribute>
+    <attribute><id>OCC_CONTROL_DATA</id></attribute>
+    <attribute><id>HTMGT_INTERNAL_FLAGS</id></attribute>
+    <attribute><id>HTMGT_SAFEMODE</id></attribute>
+    <attribute><id>CLEAR_DIMM_SPD_ENABLE</id></attribute>
+    <attribute><id>OCC_COMMON_AREA_PHYS_ADDR</id> </attribute>
+    <attribute><id>ATTN_CHK_ALL_PROCS</id> </attribute>
+    <attribute><id>MASTER_MBOX_SCRATCH</id> </attribute>
+    <attribute><id>IS_DRTM_MPIPL_HB</id></attribute>
+    <attribute><id>DRTM_PAYLOAD_ADDR_MB_HB</id></attribute>
+    <attribute><id>FORCE_PRE_PAYLOAD_DRTM</id></attribute>
+    <attribute><id>HB_RSV_MEM_NEXT_SECTION</id></attribute>
+    <attribute><id>HB_SECURITY_MODE</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>enc-node-power9</id>
+    <attribute><id>PART_NUMBER</id></attribute>
+    <attribute><id>SERIAL_NUMBER</id></attribute>
+    <attribute><id>VPD_SWITCHES</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>chip-processor</id>
+    <attribute>
+        <id>FSI_MASTER_MUTEX</id>
+    </attribute>
+    <attribute>
+        <id>FSI_SCOM_MUTEX</id>
+    </attribute>
+    <attribute>
+        <id>SCOM_IND_MUTEX</id>
+    </attribute>
+    <attribute><id>SCAN_MUTEX</id></attribute>
+    <attribute>
+        <id>HOMER_PHYS_ADDR</id>
+    </attribute>
+    <attribute>
+        <id>HOMER_VIRT_ADDR</id>
+    </attribute>
+    <attribute>
+        <id>SBE_FFDC_ADDR</id>
+    </attribute>
+    <attribute>
+        <id>SBE_COMM_ADDR</id>
+    </attribute>
+    <attribute>
+        <id>VPD_SWITCHES</id>
+    </attribute>
+    <attribute>
+        <id>SERIAL_NUMBER</id>
+    </attribute>
+    <attribute>
+        <id>PART_NUMBER</id>
+    </attribute>
+    <attribute>
+        <id>HBRT_HYP_ID</id>
+    </attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>chip-processor-power9</id>
+    <attribute>
+        <id>I2C_ENGINE_MUTEX_0</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>I2C_ENGINE_MUTEX_1</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>I2C_ENGINE_MUTEX_2</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>I2C_ENGINE_MUTEX_3</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>I2C_PAGE_MUTEX_0</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>I2C_PAGE_MUTEX_1</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>I2C_PAGE_MUTEX_2</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>I2C_PAGE_MUTEX_3</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>EEPROM_PAGE_ARRAY</id>
+          <default>2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2</default>
+    </attribute>
+    <attribute>
+        <id>XSCOM_VIRTUAL_ADDR</id>
+    </attribute>
+    <attribute><id>HB_TARGET_SCOMABLE</id></attribute>
+</targetTypeExtension>
+
+<!-- Centaur chip/DMI -->
+
+<targetTypeExtension>
+    <id>chip-membuf-centaur</id>
+    <attribute>
+        <id>FSI_SCOM_MUTEX</id>
+    </attribute>
+    <attribute>
+        <id>SCOM_IND_MUTEX</id>
+    </attribute>
+    <attribute><id>SCAN_MUTEX</id></attribute>
+    <attribute>
+        <id>IBSCOM_VIRTUAL_ADDR</id>
+    </attribute>
+    <attribute>
+        <id>IBSCOM_MUTEX</id>
+    </attribute>
+    <attribute>
+        <id>EEPROM_PAGE_ARRAY</id>
+          <default>2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2</default>
+    </attribute>
+    <attribute>
+        <id>I2C_ENGINE_MUTEX_0</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>I2C_ENGINE_MUTEX_1</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>I2C_PAGE_MUTEX_0</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>I2C_PAGE_MUTEX_1</id>
+        <default>0</default>
+    </attribute>
+    <attribute>
+        <id>GPIO_INFO</id>
+    </attribute>
+    <attribute><id>VPD_SWITCHES</id></attribute>
+    <attribute>
+        <id>ISDIMM_MBVPD_INDEX</id>
+    </attribute>
+    <attribute><id>PART_NUMBER</id></attribute>
+    <attribute><id>SERIAL_NUMBER</id></attribute>
+    <attribute>
+        <id>HBRT_HYP_ID</id>
+    </attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>unit-core-power9</id>
+    <attribute><id>HB_TARGET_SCOMABLE</id></attribute>
+    <attribute>
+        <id>HBRT_HYP_ID</id>
+    </attribute>
+    <attribute><id>SPCWKUP_COUNT</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>unit-ex-power9</id>
+    <attribute><id>HB_TARGET_SCOMABLE</id></attribute>
+    <attribute>
+        <id>HBRT_HYP_ID</id>
+    </attribute>
+    <attribute><id>SPCWKUP_COUNT</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>unit-eq-power9</id>
+    <attribute><id>SPCWKUP_COUNT</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>lcard-dimm</id>
+    <attribute><id>VPD_SWITCHES</id></attribute>
+    <attribute><id>PART_NUMBER</id></attribute>
+    <attribute><id>SERIAL_NUMBER</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>unit-mcs-nimbus</id>
+    <attribute><id>HB_TARGET_SCOMABLE</id></attribute>
+    <attribute><id>VPD_SWITCHES</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>unit-xbus-nimbus</id>
+    <attribute><id>HB_TARGET_SCOMABLE</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>occ</id>
+    <attribute>
+        <id>PSTATE_TABLE</id>
+    </attribute>
+    <attribute>
+        <id>PSTATE_TABLE_MFG</id>
+    </attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>chip-tpm-cectpm</id>
+    <attribute>
+        <id>HB_TPM_LOG_MGR_PTR</id>
+    </attribute>
+    <attribute>
+        <id>HB_TPM_MUTEX</id>
+    </attribute>
+    <attribute>
+        <id>TPM_ROLE</id>
+    </attribute>
+    <attribute>
+        <id>HB_TPM_INIT_ATTEMPTED</id>
+    </attribute>
+</targetTypeExtension>
+
+</attributes>

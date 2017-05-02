@@ -1,0 +1,11 @@
+config HTMGT
+    default n
+    depends on BMC_IPMI #TODO RTC: 124370
+    help
+        Enable Host TMGT in hostboot/HBRT
+
+config CONSOLE_OUTPUT_OCC_COMM
+    default n
+    help
+        Set to output the OCC communications (command and response data)
+        to the console during IPL

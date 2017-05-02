@@ -1,0 +1,86 @@
+# Initialize HB search paths.
+$hb_startup_path = (lookup-file hbfw/startup.simics)
+$hb_script_location = (python "''.join(map('/'.__add__,\""+$hb_startup_path+"\"[1:].split('/')[0:-1]))")
+python "os.environ['HB_TOOLPATH'] = \""+$hb_script_location+"\""
+
+$model = (shell "printenv CEC_MODEL")
+$hb_machine = "unknown"
+if ($model == "p9_nimbus") {$hb_machine = "nimbus"}
+if ($model == "p9zz_1s2u") {$hb_machine = "zztop"}
+python "os.environ['HB_MACHINE'] = \""+$hb_machine+"\""
+echo "HB_MACHINE is: "+$hb_machine
+
+
+# Setup some common vars to use across machine types
+$hb_masterproc = ""
+@simenv.hb_masterproc = quiet_run_command("get-master-proc")[0]
+echo "Master Proc is: "+$hb_masterproc
+
+$hb_pnor = ""
+
+@simenv.hb_pnor = quiet_run_command("get-master-pnor")[0]
+try {
+    @SIM_get_object(simenv.hb_pnor[0])
+} except {
+    # Default to Nimbus name
+    foreach $pnor in (get-object-list -all BmcCmp) {
+       $hb_pnor = ($pnor)
+    }
+}
+
+echo "Master PNOR is: "+$hb_pnor
+
+# Choose a default core to start with
+$hb_cpu = "system_cmp0.cpu0_0_00_0"
+echo "Defaulting to CPU "+$hb_cpu+" for Hostboot tools"
+
+# Prevent SBE Updates from happening on an IPL
+echo "Altering SBE SEEPROM Versions to disable Update in IPL"
+foreach $cc in (get-object-list p9_proc) {
+    ($cc).seeprom1.seeprom1_image.set 0x3FED9 0x5A5A5A5A 8 -l
+    ($cc).seeprom3.seeprom3_image.set 0x3FED9 0x5A5A5A5A 8 -l
+}
+
+# Load HB debug tools.
+try {
+    run-python-file (lookup-file hbfw/simics-debug-framework.py)
+    run-python-file (lookup-file hbfw/hb-simdebug.py)
+} except { echo "ERROR: Failed to load Hostboot debug tools." }
+
+# Determine security state
+$hw_security=(shell "echo $SECURITY_HW_POLICY")
+if($hw_security == "") {
+    # Assume default (no HW security) if not specified
+    $hw_security = "0"
+}
+
+if(($hw_security != "1") and ($hw_security != "0")) {
+    # Emit warning and assume default
+    echo ("SECURITY: WARNING! Bad value "+
+        $hw_security+" for HW security policy, defaulting to 0")
+    $hw_security = "0"
+}
+echo "SECURITY: HW security policy set to "+$hw_security
+
+# Translate security state to SIMICS jumper state
+$jumperApplied=TRUE
+if($hw_security == "1") {
+    $jumperApplied=FALSE
+}
+
+# Load jumper state to each processor
+foreach $procX in (get-object-list p9_proc) {
+
+    # Set logical jumper state in SIMICS based on HW policy
+    #     "TRUE"=jumper applied(security disabled, default)
+    #     "FALSE"=jumper removed(security enabled)
+    (($procX)->secure_jumper=$jumperApplied)
+}
+
+########################### WORKAROUNDS ####################################
+# Setup the mailbox.
+# for mbox on core 0 use:
+# proc_venicechip_cmp0.psi_hb->psihb_xivr_fsi=0x0140000000     #02010917
+# for mbox on core 5 use:
+#proc_venicechip_cmp0.psi_hb->psihb_xivr_fsi=0x0000A00140000000   #02010917
+#proc_venicechip_cmp0.psi_hb->psihb_irsn=0x00030003FFFF0000 #0201091b

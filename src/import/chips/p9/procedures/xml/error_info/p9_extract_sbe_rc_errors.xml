@@ -1,0 +1,209 @@
+<!-- IBM_PROLOG_BEGIN_TAG                                                   -->
+<!-- This is an automatically generated prolog.                             -->
+<!--                                                                        -->
+<!-- $Source: src/import/chips/p9/procedures/xml/error_info/p9_extract_sbe_rc_errors.xml $ -->
+<!--                                                                        -->
+<!-- OpenPOWER HostBoot Project                                             -->
+<!--                                                                        -->
+<!-- Contributors Listed Below - COPYRIGHT 2016,2017                        -->
+<!-- [+] International Business Machines Corp.                              -->
+<!--                                                                        -->
+<!--                                                                        -->
+<!-- Licensed under the Apache License, Version 2.0 (the "License");        -->
+<!-- you may not use this file except in compliance with the License.       -->
+<!-- You may obtain a copy of the License at                                -->
+<!--                                                                        -->
+<!--     http://www.apache.org/licenses/LICENSE-2.0                         -->
+<!--                                                                        -->
+<!-- Unless required by applicable law or agreed to in writing, software    -->
+<!-- distributed under the License is distributed on an "AS IS" BASIS,      -->
+<!-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        -->
+<!-- implied. See the License for the specific language governing           -->
+<!-- permissions and limitations under the License.                         -->
+<!--                                                                        -->
+<!-- IBM_PROLOG_END_TAG                                                     -->
+<!-- File: p9_extract_sbe_rc_errors.xml. -->
+<!-- Halt codes for p9_extract_sbe_rc -->
+
+<hwpErrors>
+  <!-- ******************************************************************** -->
+  <!-- Halt codes for PPE -->
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_NEVER_STARTED</rc>
+    <description>
+    SBE engine was probably never started
+    Action:Retrigger IPL or HRESET [RESTART_SBE]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_PROGRAM_INTERRUPT</rc>
+    <description>
+    Program interrupt promoted
+    Action:Code update required [RESTART_SBE]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_ADDR_NOT_RECOGNIZED</rc>
+    <description>
+    Address scope out of range
+    Action:Code update required [RESTART_SBE]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <!-- Halt codes for OTPROM -->
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_OTPROM_UNCORRECTED_ERROR</rc>
+    <description>
+    Uncorrectable error detected in OTPROM memory read
+    Action:No recovery action possible to correct this error [NO_RECOVERY_ACTION]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_MAGIC_NUMBER_MISMATCH</rc>
+    <description>
+    SEEPROM magic number didn't match
+    Action:Reload/update of OTPROM and SEEPROM required [RE_IPL]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_BRANCH_TO_SEEPROM_FAIL</rc>
+    <description>
+    Branch to SEEPROM didn't happen
+    Action:Reload/update of OTPROM required [RE_IPL]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_UNEXPECTED_OTPROM_HALT</rc>
+    <description>
+    Halted in OTPROM, but not at an expected halt location
+    Action:Reload/update of OTPROM required [RE_IPL]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <!-- Halt codes for PIBMEM -->
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_PIBMEM_ECC_UNCORRECTED_ERROR_PIB</rc>
+    <description>
+    Uncorrectable error occurred while PIB memory read
+    Action:Reload/update of PIBMEM required [RESTART_SBE]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_PIBMEM_ECC_UNCORRECTED_ERROR_FACES</rc>
+    <description>
+    Uncorrectable error occurred while fast acess interface read
+    Action:Reload/update of PIBMEM required [RESTART_SBE]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <!-- Halt codes for SEEPROM -->
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_FI2CM_BIT_RATE_ERR</rc>
+    <description>
+    I2C bit rate divisor is less than min speed value
+    Action:Reload/update of OTPROM required [RE_IPL]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_FI2C_ERROR</rc>
+    <description>
+    There are an FI2C I2C Error detected
+    Action:Reload/update of SEEPROM required or switch seeprom [REIPL_BKP_SEEPROM]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_UNRECOVERABLE_ECC_SEEPROM</rc>
+    <description>
+    There are 2 bit flips in read data which cannot be corrected
+    Action:Reload/update of SEEPROM required or switch seeprom [REIPL_BKP_SEEPROM]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <!-- Halt codes for Data Machine Check -->
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_OTP_PARITY_ERR</rc>
+    <description>
+    PIB Parity error detected in OTPROM memory
+    Action:No recovery action possible to correct this error [NO_RECOVERY_ACTION]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_PIB_TIMEOUT</rc>
+    <description>
+    PIB Timeout error detected
+    Action:Warm ipl where we don't switch off VSB just toggle start_cbs from FSP [RESTART_CBS]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_SCOM_ERR</rc>
+    <description>
+    Scom error detected 
+    Action:Warm ipl where we don't switch off VSB just toggle start_cbs from FSP [RESTART_CBS]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_PIBMEM_ECC_ERR</rc>
+    <description>
+    ECC error detected during pibmem access, Check if REPAIR solution is applied
+    Action:No recovery action possible to correct this error [NO_RECOVERY_ACTION]
+    </description>
+  </hwpError>
+
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_PIBMEM_ERR</rc>
+    <description>
+    Error detected during pibmem access
+    Action:Warm ipl where we don't switch off VSB just toggle start_cbs from FSP [RESTART_CBS]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_FI2C_TIMEOUT</rc>
+    <description>
+    FI2C Timeout error detected
+    Action:Reload/update of SEEPROM required or switch seeprom [REIPL_BKP_SEEPROM]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_FI2C_SPRM_CFG_ERR</rc>
+    <description>
+    FI2C SEEPROM config error detected
+    Action:Warm ipl where we don't switch off VSB just toggle start_cbs from FSP [RESTART_CBS]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_FI2C_PIB_ERR</rc>
+    <description>
+    FI2C PIB error detected
+    Action:Warm ipl where we don't switch off VSB just toggle start_cbs from FSP [RESTART_CBS]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+  <hwpError>
+    <rc>RC_EXTRACT_SBE_RC_UNKNOWN_ERROR</rc>
+    <description>
+    Unknown error has occured, So debug has to be done to understand the error
+    Action:No automatic action can be taken [RE_IPL]
+    </description>
+  </hwpError>
+  <!-- ******************************************************************** -->
+</hwpErrors>

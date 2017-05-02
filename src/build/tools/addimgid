@@ -1,0 +1,56 @@
+#!/usr/bin/perl
+# IBM_PROLOG_BEGIN_TAG
+# This is an automatically generated prolog.
+#
+# $Source: src/build/tools/addimgid $
+#
+# OpenPOWER HostBoot Project
+#
+# Contributors Listed Below - COPYRIGHT 2011,2017
+# [+] International Business Machines Corp.
+#
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# IBM_PROLOG_END_TAG
+
+use strict;
+
+my $imageIdSym = "hbi_ImageId";
+
+my $img = shift;
+my $src = shift;
+
+my $imgBase = $img;
+$imgBase =~ s/.*\///;
+
+my $PREFIX = $ENV{'CROSS_PREFIX'};
+my $address = hex `${PREFIX}nm $src -C | grep $imageIdSym | colrm 17`;
+my $imageId = $ENV{'HOSTBOOT_VERSION'};
+if ($imageId eq '')
+{
+    $imageId = `git describe --dirty || echo Unknown-Image \`git rev-parse --short HEAD\``;
+}
+
+chomp $imageId;
+$imageId = $imageId."/".$imgBase;
+
+if (($imageId =~ m/Unknown-Image/) ||  	# Couldn't find git describe tag.
+    ($imageId =~ m/dirty/) ||	 	# Find 'dirty' commit.
+    ($imageId =~ m/^.{15}-[1-9]+/))	# Found commits after a tag.
+{
+    $imageId = $imageId."/".$ENV{"USER"};
+}
+
+system("echo -n $imageId | dd of=$img conv=notrunc bs=1 seek=$address count=127 >& /dev/null");
+exit $?

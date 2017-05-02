@@ -1,0 +1,113 @@
+# IBM_PROLOG_BEGIN_TAG
+# This is an automatically generated prolog.
+#
+# $Source: src/usr/diag/prdf/common/plat/p9/p9_mca_actions.rule $
+#
+# OpenPOWER HostBoot Project
+#
+# Contributors Listed Below - COPYRIGHT 2016,2017
+# [+] International Business Machines Corp.
+#
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# IBM_PROLOG_END_TAG
+
+/** Callout all connected DIMMs HIGH on first occurence. */
+actionclass all_dimm_H_th_1
+{
+    callout(connected(TYPE_DIMM,0), MRU_HIGH);
+    callout(connected(TYPE_DIMM,1), MRU_HIGH);
+    threshold1;
+};
+
+/** Verify Chip Mark */
+actionclass verify_chip_mark_0 { funccall("AnalyzeFetchMpe_0"); };
+actionclass verify_chip_mark_1 { funccall("AnalyzeFetchMpe_1"); };
+actionclass verify_chip_mark_2 { funccall("AnalyzeFetchMpe_2"); };
+actionclass verify_chip_mark_3 { funccall("AnalyzeFetchMpe_3"); };
+actionclass verify_chip_mark_4 { funccall("AnalyzeFetchMpe_4"); };
+actionclass verify_chip_mark_5 { funccall("AnalyzeFetchMpe_5"); };
+actionclass verify_chip_mark_6 { funccall("AnalyzeFetchMpe_6"); };
+actionclass verify_chip_mark_7 { funccall("AnalyzeFetchMpe_7"); };
+
+/** Mainline NCE handling */
+actionclass mainline_nce_handling { funccall("AnalyzeFetchNce"); };
+
+/** Mainline TCE handling */
+actionclass mainline_tce_handling { funccall("AnalyzeFetchTce"); };
+
+/** Mainline UE handling */
+actionclass mainline_ue_handling
+{
+    SUEGenerationPoint;
+    threshold( field(33 / 30 min ) ); # To prevent flooding. Will be unmasked
+                                      # when background scrubbing resumes after
+                                      # targeted diagnostics is complete.
+    funccall("AnalyzeFetchUe");
+};
+
+/** Memory Port Failure */
+actionclass mem_port_failure
+{
+    callout(connected(TYPE_DIMM,0), MRU_HIGH); # DIMM 0 HIGH
+    callout(connected(TYPE_DIMM,1), MRU_HIGH); # DIMM 1 HIGH
+    calloutSelfLow;                            # Self LOW
+    threshold1;                                # Threshold 1
+    funccall("MemPortFailure");                # Mask off the entire port
+};
+
+/** Handle RCD parity error. */
+actionclass rcd_parity_error
+{
+    callout(connected(TYPE_DIMM,0), MRU_HIGH); # DIMM 0 HIGH
+    callout(connected(TYPE_DIMM,1), MRU_HIGH); # DIMM 1 HIGH
+    calloutSelfLow;                            # Self LOW
+    # Thresholding done in plugin
+    funccall("RcdParityError");                # Run TPS on TH for all MCA ranks
+};
+
+/** Handle Mainline IUEs */
+actionclass mainline_iue_handling
+{
+    SUEGenerationPoint;
+    # Thresholding done in the plugin
+    funccall("AnalyzeMainlineIue");
+};
+
+/**  Handle Maintenance IUEs */
+actionclass maintenance_iue_handling
+{
+    SUEGenerationPoint;
+    # Thresholding done in the plugin
+    funccall("AnalyzeMaintIue");
+};
+
+actionclass impe_handling { funccall("AnalyzeImpe"); };
+
+/** MCA/UE algroithm, threshold 5 per day */
+actionclass mca_ue_algorithm_th_5perDay
+{
+    calloutSelfMed;
+    threshold5pday;
+    funccall("mcaUeAlgorithm"); # must be called last
+};
+
+/** MCA/UE algroithm, threshold 1 */
+actionclass mca_ue_algorithm_th_1
+{
+    calloutSelfMed;
+    threshold1;
+    funccall("mcaUeAlgorithm"); # must be called last
+};
+

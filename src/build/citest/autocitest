@@ -1,0 +1,521 @@
+#!/bin/bash
+# IBM_PROLOG_BEGIN_TAG
+# This is an automatically generated prolog.
+#
+# $Source: src/build/citest/autocitest $
+#
+# OpenPOWER HostBoot Project
+#
+# Contributors Listed Below - COPYRIGHT 2011,2017
+# [+] International Business Machines Corp.
+#
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# IBM_PROLOG_END_TAG
+################################################################################
+##  Simics automation using autosim
+##  2011-05-23  mww modified to run hostboot in simics
+##  2011-06-02  mww check in first working version.
+##                  Profuse thanks to Patrick Williams for getting this going
+##                  on the Jenkins server!!
+##
+##  Usage:
+##       autocitest [--quiet] <backing_build> <sandbox_name> <hbi_image>
+################################################################################
+function    waitkb()
+{
+
+    ##  wait for kbhit to continue
+    ## echo "Hit any key to continue"
+    ## read kb
+    echo "."
+}
+
+function   usage()
+{
+
+    echo    "usage:"
+    echo    "$0 [--quiet]  backing_tree_dir  sandbox_name  path_to_hbicore_test_img    "
+}
+
+
+function    stopsim()
+{
+    # Stop simics
+    echo "Stopping simics"
+    autosim $NOWIN $VERBOSE --stopsim
+    if [ $? -ne 0 ] ; then
+        echo "WARNING: Unable to stop simics cleanly"
+    fi
+}
+
+
+function    stopserver()
+{
+    # Stop simics server
+    echo "Stopping simics server"
+    autosim $NOWIN $VERBOSE --stopserver
+    if [ $? -ne 0 ] ; then
+        echo "WARNING: Unable to stop simics server cleanly"
+    fi
+}
+
+
+function    runtraceHB()
+{
+
+    echo    "Collect traceHB info..."
+
+    #autosim $NOWIN --simcmd   "run-python-file ${SBXHOME}/src/build/simics/hb-simdebug.py"
+    #if [ $? -ne 0 ] ; then
+    #    echo "ERROR 3: Unable to run $?"
+    #    stopsim
+    #    stopserver
+    #    exit 1
+    #fi
+
+    autosim $NOWIN --simcmd   "pipe hb-trace \"cat > traceHB.log\"" \
+            --timeout 300
+    if [ $? -ne 0 ] ; then
+        echo "ERROR 4 : Unable to run $?"
+        stopsim
+        stopserver
+        exit 1
+    fi
+
+    mv ${SANDBOXBASE}/simics/traceHB.log ${SBXHOME}/traceHB.log
+}
+
+
+##  verbose is the default.
+VERBOSE=" --verbose"
+if [ "$1" = "--quiet" ] ; then
+        VERBOSE=""
+        shift
+fi
+
+##
+##  set up
+##
+DRIVER="$1"                     ##  backing tree
+export bb=$DRIVER               ##  simulate a workon
+HBICORE_TEST="$2"               ##  path to hbicore_test.img
+
+export SHELL="/bin/bash"        ##  Needed to fool workon to launch a bash
+                                ##  shell, which autosim expects.
+NOWIN="--nowin"                 ##  remote execution does not have a display
+
+##  jenkins creates a new workspace for every compile.
+##     cxxtest-start.sh will verify this and then export WORKSPACE_DIR for us.
+SBXHOME=$PROJECT_ROOT
+
+if [ "$DRIVER" = "" ] ; then
+        echo "ERROR: you must specify a driver (backing tree) to run the tests with"
+        usage
+        exit 1
+fi
+
+if [ ! -f "${SBXHOME}/${HBICORE_TEST}" ] ; then
+        echo "ERROR: you must specify a valid hbicore_test.bin file."
+        usage
+        exit 1
+fi
+
+##  Find the .syms file for the image.  Remove extension, add .syms.
+HBICORE_TEST_SYMS="${HBICORE_TEST%%.*}.syms"
+
+## let's get set up
+cd $SBXHOME
+
+echo    "$0"
+echo    "VERBOSE                    = $VERBOSE"
+echo    "NOWIN                      = $NOWIN"
+echo    "BACKING_TREE               = $DRIVER"
+echo    "HBICORE_TEST               = $HBICORE_TEST"
+echo    "HBICORE_TEST_SYMS          = $HBICORE_TEST_SYMS"
+echo    "SANDBOXRC                  = $SANDBOXRC"
+echo    "SBXHOME                    = $SBXHOME"
+echo    "current directory is " `pwd`
+
+waitkb
+
+
+timestamp=`date +'%H:%M:%S'`
+echo "$timestamp Starting autosample test..."
+
+# see simics license usage
+tail -n 500 /afs/rch/usr4/dlarson/public/stats/lic_usage.txt | grep hindsight
+
+# Run set up in current shell
+echo    "run autosimsetup.."
+export AUTOSIM_WORKDIR=$SANDBOXBASE
+. autosimsetup
+
+waitkb
+
+# Start the simics server
+echo "Starting simics server in sandbox $SANDBOXNAME on machine $MACHINE"
+autosim $NOWIN $VERBOSE --startserver --wp --sandbox $SANDBOXNAME --machine $MACHINE
+if [ $? -ne 0 ] ; then
+        echo "ERROR: Unable to start simics server $?"
+        exit 1
+fi
+
+waitkb
+
+# If we are running under Jenkins, do "no remote execution" because built in
+# /tmp.
+if [ -z $RUNNING_UNDER_JENKINS -a -z $SANDBOX_IN_TEMP ];
+then
+    NRE=""
+else
+    # Trick autosim into thinking we're running on a vexec system.
+    echo "echo \"Running on server $HOSTNAME ---\"" >> \
+            ${SANDBOXBASE}/obj/ppc/simu/scripts/hbfw/startup.simics
+    NRE="--sim_parms -nre"
+fi
+
+# Start simics and wait for it to reach standby
+echo "Attempting to start simics"
+
+#autosim $VERBOSE --startsim --chkpt standby <<< chkpt not working yet
+max_start_simics_attempts=5
+current_attempts=0
+while [ $current_attempts -lt $max_start_simics_attempts ]; do
+    echo "> Attempt $current_attempts/$max_start_simics_attempts to start simics"
+    autosim $NOWIN $VERBOSE --startsim $NRE --notar
+    if [ $? -ne 0 ] ; then
+        # Do not fail until max attempts tried
+        if [ $current_attempts -ge $max_start_simics_attempts ]; then
+            echo ">> ERROR: Unable to start simics $?"
+            stopserver      ##  kill the server again.
+            exit 1
+        fi
+        echo ">> Failed: trying to start simics again"
+        sleep 15
+    else
+        echo ">> Success: started simics"
+        break
+    fi
+    ((current_attempts++))
+done
+
+waitkb
+
+# open simics telnet port
+autosim --simtelnet
+if [ $? -ne 0 ] ; then
+    echo "ERROR: Unable to open simics telnet port $?"
+    exit 1
+fi
+
+waitkb
+
+##  We need to be careful to get hostboot's HRMOR so
+##  allow SBE and HBBL to boot and for hostboot to get started
+echo "Wait for SBE and Hostboot bootloader to complete."
+echo
+echo "==================================="
+echo
+BL_HRMOR=0x8200000
+loopcount=1
+while true; do
+    sleep 5
+    HRMOR=`autosim $NOWIN --simcmd   "python \"getHRMOR()\""| tr -d '\n\r'`
+    echo "HRMOR = $HRMOR"
+    if [ "$HRMOR" != "$BL_HRMOR" ]; then
+        echo "SBE and Hostboot bootloader completed successfully"
+        break
+    fi
+
+    if [ "$loopcount" -ge 36 ];   then
+        echo "ERROR: timed out after 3 minutes waiting for SBE and Hostboot bootloader completion"
+        autosim $NOWIN --simcmd "sbe-trace 0"
+        autosim $NOWIN --simcmd "hb-bltrace"
+        stopsim
+        stopserver
+        exit 1
+    fi
+    ((loopcount++))     # increment loopcount
+done
+echo
+echo
+
+# Grab Bootloader trace before it gets destroyed
+echo "====> dump hb-bltrace..."
+autosim $NOWIN --simcmd   "pipe hb-bltrace \"cat > ${SBXHOME}/hb-bltrace.log \"" --timeout 300
+if [ $? -ne 0 ] ; then
+echo "ERROR: Unable to run $?"
+       stopsim
+       stopserver
+       exit 1
+fi
+
+waitkb
+
+##  grep for totaltests, etc.  These will appear in the hbicore_test.syms file and
+## look like the following:
+##      V,000292b8,00000000,00000008,CxxTest::totaltests
+##      V,000292c0,00000000,00000008,CxxTest::tracecalls
+##      V,000292c8,00000000,00000008,CxxTest::warnings
+##      V,000292d0,00000000,00000008,CxxTest::failedtests
+
+##  grep for the globals
+echo "find totaltests, etc in ${SBXHOME}/${HBICORE_TEST_SYMS}"
+totaltests_addr=`grep "CxxTest::g_TotalTests" \
+        ${SBXHOME}/${HBICORE_TEST_SYMS} | awk '{split($0,a,","); print a[2]}'`
+failedtests_addr=`grep "CxxTest::g_FailedTests" \
+        ${SBXHOME}/${HBICORE_TEST_SYMS} | awk '{split($0,a,","); print a[2]}'`
+warnings_addr=`grep "CxxTest::g_Warnings" \
+        ${SBXHOME}/${HBICORE_TEST_SYMS} | awk '{split($0,a,","); print a[2]}'`
+tracecalls_addr=`grep "CxxTest::g_TraceCalls" \
+        ${SBXHOME}/${HBICORE_TEST_SYMS} | awk '{split($0,a,","); print a[2]}'`
+mods_started_addr=`grep "CxxTest::g_ModulesStarted" \
+        ${SBXHOME}/${HBICORE_TEST_SYMS} | awk '{split($0,a,","); print a[2]}'`
+mods_completed_addr=`grep "CxxTest::g_ModulesCompleted" \
+        ${SBXHOME}/${HBICORE_TEST_SYMS} | awk '{split($0,a,","); print a[2]}'`
+shutdown_status=`grep "CpuManager::cv_shutdown_status" \
+        ${SBXHOME}/${HBICORE_TEST_SYMS} | awk '{split($0,a,","); print a[2]}'`
+
+#Adjust addresses for HRMOR
+HRMOR=`autosim $NOWIN --simcmd   "python \"getHRMOR()\""| tr -d '\n\r'`
+
+temp=$(($HRMOR + 0x$totaltests_addr))
+totaltests_addr=`echo "obase=16; $temp" | bc`
+
+temp=$(($HRMOR + 0x$failedtests_addr))
+failedtests_addr=`echo "obase=16; $temp" | bc`
+
+temp=$(($HRMOR + 0x$warnings_addr))
+warnings_addr=`echo "obase=16; $temp" | bc`
+
+temp=$(($HRMOR + 0x$tracecalls_addr))
+tracecalls_addr=`echo "obase=16; $temp" | bc`
+
+temp=$(($HRMOR + 0x$mods_started_addr))
+mods_started_addr=`echo "obase=16; $temp" | bc`
+
+temp=$(($HRMOR + 0x$mods_completed_addr))
+mods_completed_addr=`echo "obase=16; $temp" | bc`
+
+temp=$(($HRMOR + 0x$shutdown_status))
+shutdown_status=`echo "obase=16; $temp" | bc`
+
+##  note, don't use $VERBOSE here or you get all sorts of extra junk in the output file.
+echo "Wait for unit test completion."
+echo
+echo "==================================="
+echo
+declare -i timeout=0
+modsstarted=0
+modscompleted=0
+loopcount=1
+while [ $(($modsstarted)) -lt 1 -o $(($modsstarted)) -ne $(($modscompleted)) ]; do
+    sleep 20
+    ((loopcount++))     # increment loopcount
+    echo "loopcount = $loopcount"
+
+    echo "modscompleted log command"
+    echo "autosim $NOWIN --simcmd \"print ((system_cmp0.phys_mem).read 0x$mods_completed_addr 0x08)\"  1> $SBXHOME/modscompleted.log  2> /dev/null"
+    autosim $NOWIN --simcmd   "print ((system_cmp0.phys_mem).read 0x$mods_completed_addr 0x08)"  1> $SBXHOME/modscompleted.log  2> /dev/null
+    echo
+
+    echo "modscompleted command"
+    echo "cat $SBXHOME/modscompleted.log | awk '/0x/ {print strtonum($1)}'"
+    modscompleted=`cat $SBXHOME/modscompleted.log | awk '/0x/ {print strtonum($1)}'`
+    echo
+
+    echo "modsstarted log command"
+    echo "autosim $NOWIN --simcmd   \"print ((system_cmp0.phys_mem).read 0x$mods_started_addr 0x08)\"     1> $SBXHOME/modsstarted.log  2> /dev/null"
+    autosim $NOWIN --simcmd   "print ((system_cmp0.phys_mem).read 0x$mods_started_addr 0x08)"     1> $SBXHOME/modsstarted.log  2> /dev/null
+    echo
+
+    echo "modsstarted command"
+    echo "cat $SBXHOME/modsstarted.log |  awk '/0x/ {print strtonum($1)}'"
+    modsstarted=`cat $SBXHOME/modsstarted.log |  awk '/0x/ {print strtonum($1)}'`
+    echo
+
+    echo "ModulesStarted:ModulesCompleted  => $modsstarted:$modscompleted"
+
+    # @TODO RTC:149210 temporary fix for autosim hangs on real code errors. For some reason
+    # when we hit an actual bug and simics halts, the autosim commands hang
+    # causing this loop to take >8 hours.
+    if [ -z $modsstarted ] && [ -z $modscompleted ]; then
+        echo "ERROR: autosim hanging on real code errors, temporarily catching early"
+        echo "See archived hbTracMerg for more info"
+        exit 1
+    fi
+
+    if [ "$loopcount" -ge 75 ];   then
+        timestamp=`date +'%H:%M:%S'`
+        echo    "$timestamp ERROR: timed out after 25 minutes waiting for until test completion"
+        autosim $NOWIN --simcmd   "hb-Ps"
+        timeout=$(($modsstarted - $modscompleted))
+        break
+    fi
+    echo
+    echo "==================================="
+    echo
+done
+
+echo "====> waiting for shutdown..."
+loopcount=0
+while [ "$loopcount" -lt 8 ]; do
+    autosim $NOWIN --simcmd   "print ((system_cmp0.phys_mem).read 0x$shutdown_status 0x08)"     1> $SBXHOME/shutdown_status.log  2> /dev/null
+    shutdown_yet=`cat $SBXHOME/shutdown_status.log |  awk '/0x/ {print strtonum($1)}'`
+    if [ "$shutdown_yet" -ne 0 ];  then
+        break
+    fi
+    sleep 5
+    ((loopcount++))     # increment loopcount
+done
+
+echo "====> dump totaltests..."
+autosim $NOWIN --simcmd   "print ((system_cmp0.phys_mem).read 0x$totaltests_addr 0x08)"     1> $SBXHOME/totaltests.log  2> /dev/null
+if [ $? -ne 0 ] ; then
+        echo "ERROR: Unable to run $?"
+        stopsim
+        stopserver
+        exit 1
+fi
+totaltests=`cat $SBXHOME/totaltests.log |  awk '/0x/ {print strtonum($1)}'`
+
+
+echo "====> dump failedtests..."
+autosim $NOWIN --simcmd   "print ((system_cmp0.phys_mem).read 0x$failedtests_addr 0x08)"     1> $SBXHOME/failedtests.log  2> /dev/null
+if [ $? -ne 0 ] ; then
+        echo "ERROR: Unable to run $?"
+        stopsim
+        stopserver
+        exit 1
+fi
+failedtests=`cat $SBXHOME/failedtests.log |  awk '/0x/ {print strtonum($1)}'`
+
+
+echo "====> dump warnings..."
+autosim $NOWIN --simcmd   "print ((system_cmp0.phys_mem).read 0x$warnings_addr 0x08)"     1> $SBXHOME/warnings.log  2> /dev/null
+if [ $? -ne 0 ] ; then
+        echo "ERROR: Unable to run $?"
+        stopsim
+        stopserver
+        exit 1
+fi
+warnings=`cat $SBXHOME/warnings.log |  awk '/0x/ {print strtonum($1)}'`
+
+echo "====> dump tracecalls..."
+autosim $NOWIN --simcmd   "print ((system_cmp0.phys_mem).read 0x$tracecalls_addr 0x08)"     1> $SBXHOME/tracecalls.log  2> /dev/null
+if [ $? -ne 0 ] ; then
+        echo "ERROR: Unable to run $?"
+        stopsim
+        stopserver
+        exit 1
+fi
+tracecalls=`cat $SBXHOME/tracecalls.log |  awk '/0x/ {print strtonum($1)}'`
+
+
+echo "====> dump printk buffer..."
+autosim $NOWIN --simcmd   "pipe hb-printk \"cat > ${SBXHOME}/testprintk.log \"" --timeout 300
+if [ $? -ne 0 ] ; then
+echo "ERROR: Unable to run $?"
+       stopsim
+       stopserver
+       exit 1
+fi
+
+##  run CamVan's python script to dump out the trace logs
+echo "====> dump trace buffer(s)..."
+runtraceHB
+if [ $? -ne 0 ] ; then
+    echo "ERROR: Unable to run $?"
+    stopsim
+    stopserver
+    exit 1
+fi
+
+echo "====> dump L3..."
+autosim $NOWIN --simcmd   "hb-dump"
+if [ $? -ne 0 ] ; then
+    echo "ERROR 4 : Unable to run $?"
+    stopsim
+    stopserver
+    exit 1
+fi
+
+########################################################
+##  done.  Stop the simulation
+########################################################
+stopsim
+
+
+## now stop the server.
+stopserver
+
+
+##  print out ending.
+timestamp=`date +'%H:%M:%S'`
+
+echo    "----------------- Printk Buffer -------------------"
+cat $SBXHOME/testprintk.log
+shutdown_code="$(grep --text 'Shutdown Requested' $SBXHOME/testprintk.log | awk -F '= 0x' '{ print $2 }')"
+
+
+echo    "----------------- traceHB Buffer -------------------"
+cat $SBXHOME/traceHB.log
+
+initfail=0
+echo "Shutdown Code = $shutdown_code"
+if [ "${shutdown_code}" != "1230000" ]
+then
+ echo "**ERROR : System did not initialize and/or shutdown properly**"
+ initfail=1
+fi
+
+echo
+echo    "==================================================="
+if [ $timeout = 0 ] ; then
+    echo    "$timestamp Finished autocitest with no Cxx errors."
+else
+    echo    "$timestamp Failed autocitest, modules timed out."
+    echo    "    failed modules:  $timeout"
+fi
+echo    "    total tests:     $totaltests"
+echo    "    failed tests:    $failedtests"
+echo    "    warnings:        $warnings"
+echo    "    trace calls:     $tracecalls"
+echo    "==================================================="
+echo
+
+if [ 0 !=  $timeout ] ; then
+    echo "Modules started:   $modsstarted"
+    echo "Modules completed: $modscompleted"
+    exit 1
+fi
+if [ 0 !=  $(($failedtests)) ] ; then
+    echo "$failedtests testcases failed."
+    exit 1
+fi
+if [ 0 != $(($warnings)) ] ; then
+    echo "$warnings testcase warnings found."
+    exit 1
+fi
+if [ 0 != $(($initfail)) ] ; then
+    echo "Initialization Failure"
+    exit 1
+fi
+
+exit 0
+
+
+
+

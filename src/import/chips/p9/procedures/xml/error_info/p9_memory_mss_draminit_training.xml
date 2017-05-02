@@ -1,0 +1,656 @@
+<!-- IBM_PROLOG_BEGIN_TAG                                                   -->
+<!-- This is an automatically generated prolog.                             -->
+<!--                                                                        -->
+<!-- $Source: src/import/chips/p9/procedures/xml/error_info/p9_memory_mss_draminit_training.xml $ -->
+<!--                                                                        -->
+<!-- OpenPOWER HostBoot Project                                             -->
+<!--                                                                        -->
+<!-- Contributors Listed Below - COPYRIGHT 2015,2017                        -->
+<!-- [+] International Business Machines Corp.                              -->
+<!--                                                                        -->
+<!--                                                                        -->
+<!-- Licensed under the Apache License, Version 2.0 (the "License");        -->
+<!-- you may not use this file except in compliance with the License.       -->
+<!-- You may obtain a copy of the License at                                -->
+<!--                                                                        -->
+<!--     http://www.apache.org/licenses/LICENSE-2.0                         -->
+<!--                                                                        -->
+<!-- Unless required by applicable law or agreed to in writing, software    -->
+<!-- distributed under the License is distributed on an "AS IS" BASIS,      -->
+<!-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        -->
+<!-- implied. See the License for the specific language governing           -->
+<!-- permissions and limitations under the License.                         -->
+<!--                                                                        -->
+<!-- IBM_PROLOG_END_TAG                                                     -->
+
+<!-- -->
+<!-- @file memory_mss_draminit_training.xml -->
+<!-- @brief Error xml for draminit_training -->
+<!-- -->
+
+<!-- *HWP HWP Owner: Andre Marin <aamarin@us.ibm.com> -->
+<!-- *HWP HWP Backup: Jacob Harvey <jlharvey@us.ibm.com> -->
+<!-- *HWP FW Owner: Bill Hoffa <wghoffa@us.ibm.com> -->
+<!-- *HWP Team: Memory -->
+<!-- *HWP Level: 3 -->
+<!-- *HWP Consumed by: HB:FSP -->
+<!-- -->
+
+<hwpErrors>
+
+<registerFfdc>
+  <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP0_P0_0</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP0_P0_1</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP0_P0_2</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP0_P0_3</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP0_P0_4</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP1_P0_0</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP1_P0_1</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP1_P0_2</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP1_P0_3</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP1_P0_4</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP2_P0_0</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP2_P0_1</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP2_P0_2</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP2_P0_3</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP2_P0_4</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP3_P0_0</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP3_P0_1</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP3_P0_2</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP3_P0_3</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_DATA_BIT_DISABLE0_RP3_P0_4</scomRegister>
+</registerFfdc>
+
+<registerFfdc>
+  <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+  <scomRegister>MCA_DDRPHY_PC_INIT_CAL_ERROR_P0</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_RD_STATUS0_P0_0</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_RD_STATUS0_P0_1</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_RD_STATUS0_P0_2</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_RD_STATUS0_P0_3</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_RD_STATUS0_P0_4</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_ERROR0_P0_0</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_ERROR0_P0_1</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_ERROR0_P0_2</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_ERROR0_P0_3</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_ERROR0_P0_4</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_VREF_ERROR0_P0_0</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_VREF_ERROR0_P0_1</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_VREF_ERROR0_P0_2</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_VREF_ERROR0_P0_3</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_VREF_ERROR0_P0_4</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_VREF_ERROR1_P0_0</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_VREF_ERROR1_P0_1</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_VREF_ERROR1_P0_2</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_VREF_ERROR1_P0_3</scomRegister>
+  <scomRegister>MCA_DDRPHY_DP16_WR_VREF_ERROR1_P0_4</scomRegister>
+</registerFfdc>
+
+<registerFfdc>
+  <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_INFO</id>
+  <scomRegister>MCA_DDRPHY_APB_ERROR_STATUS0_P0</scomRegister>
+  <scomRegister>MCA_DDRPHY_APB_FIR_ERR0_P0</scomRegister>
+  <scomRegister>MCA_DDRPHY_APB_FIR_ERR1_P0</scomRegister>
+  <scomRegister>MCA_DDRPHY_APB_FIR_ERR2_P0</scomRegister>
+  <scomRegister>MCA_DDRPHY_APB_FIR_ERR3_P0</scomRegister>
+  <scomRegister>MCA_IOM_PHY0_DDRPHY_FIR_REG</scomRegister>
+</registerFfdc>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_MULTIPLE_ERRORS</rc>
+  <description>Multiple training stesp failed for a given position within this calibration.</description>
+  <ffdc>FAILED_STEPS</ffdc>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_WR_LVL_ERROR</rc>
+  <description>Write Leveling has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_INITIAL_PAT_WRITE_ERROR</rc>
+  <description>Initial pattern write has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_DQS_ALIGNMENT_ERROR</rc>
+  <description>DQS Alignment has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_RD_CLK_SYS_CLK_ALIGNMENT_ERROR</rc>
+  <description>Read CLK to SYS CLK Alignment has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_RD_CENTERING_ERROR</rc>
+  <description>Read Centering has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_WR_CENTERING_ERROR</rc>
+  <description>Write centering has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_INITIAL_COARSE_WR_ERROR</rc>
+  <description>Initial coarse write has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_COARSE_RD_ERROR</rc>
+  <description>Coarse read has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_CUSTOM_PATTERN_RD_ERROR</rc>
+  <description>Custom Pattern Read has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_CUSTOM_PATTERN_WR_ERROR</rc>
+  <description>Custom Pattern Write has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_DIGITAL_EYE_ERROR</rc>
+  <description>Digital Eye has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_TRAINING_VREF_ERROR</rc>
+  <description>WR or RD VREF has returned a fail for a given position within this calibration.</description>
+  <ffdc>PORT_POSITION</ffdc>
+  <ffdc>RANKGROUP_POSITION</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_STATUS</id>
+    <target>TARGET_WITH_REGISTERS</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DRAMINIT_PC_ERROR_INFO</rc>
+  <description>
+    The PHY control has noted an error. The details of the error are contianed
+    in this error log. If these errors caused an operation to fail, a subsequent
+    error will be logged indicating the failure.
+  </description>
+  <ffdc>PC_ERROR0</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_INFO</id>
+    <target>TARGET_IN_ERROR</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <callout>
+    <target>TARGET_IN_ERROR</target>
+    <priority>LOW</priority>
+  </callout>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_DISABLED_BITS</rc>
+  <description>
+    The PHY has disabled too many bits to continue
+  </description>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_INFO</id>
+    <target>TARGET_IN_ERROR</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_IN_ERROR</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <deconfigure>
+    <target>TARGET_IN_ERROR</target>
+  </deconfigure>
+  <gard>
+    <target>TARGET_IN_ERROR</target>
+  </gard>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_FAILED_RDVREF_CAL</rc>
+  <description>
+    A DP16 has failed read vREF calibration
+  </description>
+  <ffdc>REGISTER</ffdc>
+  <ffdc>VALUE</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_INFO</id>
+    <target>TARGET_IN_ERROR</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_IN_ERROR</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <deconfigure>
+    <target>TARGET_IN_ERROR</target>
+  </deconfigure>
+  <gard>
+    <target>TARGET_IN_ERROR</target>
+  </gard>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_NO_DIMM_FOR_MAPPING</rc>
+  <description>
+    Tried to map rank pairs on a port without any DIMMS
+  </description>
+  <ffdc>FUNCTION</ffdc>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>MEDIUM</priority>
+  </callout>
+  <callout>
+    <target>MCA_TARGET</target>
+    <priority>HIGH</priority>
+  </callout>
+  <deconfigure>
+    <target>MCA_TARGET</target>
+  </deconfigure>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_INVALID_RANK_VECTOR_PASSED_IN</rc>
+  <description>
+     Invalid vector of ranks passed in
+  </description>
+  <ffdc>FUNCTION</ffdc>
+  <ffdc>RANK_SIZE</ffdc>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>MEDIUM</priority>
+  </callout>
+  <callout>
+    <childTargets>
+        <parent>MCA_TARGET</parent>
+        <childType>TARGET_TYPE_DIMM</childType>
+    </childTargets>
+    <priority>HIGH</priority>
+  </callout>
+  <deconfigure>
+     <childTargets>
+        <parent>MCA_TARGET</parent>
+        <childType>TARGET_TYPE_DIMM</childType>
+    </childTargets>
+  </deconfigure>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_INVALID_RANK</rc>
+  <description>
+     Invalid rank passed into function
+  </description>
+  <ffdc>FUNCTION</ffdc>
+  <ffdc>RANK</ffdc>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>MEDIUM</priority>
+  </callout>
+  <callout>
+    <childTargets>
+        <parent>MCA_TARGET</parent>
+        <childType>TARGET_TYPE_DIMM</childType>
+    </childTargets>
+    <priority>HIGH</priority>
+  </callout>
+  <deconfigure>
+     <childTargets>
+        <parent>MCA_TARGET</parent>
+        <childType>TARGET_TYPE_DIMM</childType>
+    </childTargets>
+  </deconfigure>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_INVALID_RANK_PAIR</rc>
+  <description>
+    Invalid rank pair passed into function
+  </description>
+  <ffdc>RANK_PAIR</ffdc>
+  <ffdc>FUNCTION</ffdc>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>MEDIUM</priority>
+  </callout>
+  <callout>
+    <childTargets>
+        <parent>MCA_TARGET</parent>
+        <childType>TARGET_TYPE_DIMM</childType>
+    </childTargets>
+    <priority>HIGH</priority>
+  </callout>
+  <deconfigure>
+     <childTargets>
+        <parent>MCA_TARGET</parent>
+        <childType>TARGET_TYPE_DIMM</childType>
+    </childTargets>
+  </deconfigure>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_NO_PRIMARY_RANK_FOUND_RP</rc>
+  <description>
+    No primary rank in rank pair
+  </description>
+  <ffdc>RANK_PAIR</ffdc>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>MEDIUM</priority>
+  </callout>
+  <callout>
+    <childTargets>
+        <parent>MCA_TARGET</parent>
+        <childType>TARGET_TYPE_DIMM</childType>
+    </childTargets>
+    <priority>HIGH</priority>
+  </callout>
+  <deconfigure>
+     <childTargets>
+        <parent>MCA_TARGET</parent>
+        <childType>TARGET_TYPE_DIMM</childType>
+    </childTargets>
+  </deconfigure>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_FAILED_WRVREF_CAL</rc>
+  <description>
+    A DP16 has failed write VREF calibration
+  </description>
+  <ffdc>REGISTER</ffdc>
+  <ffdc>VALUE</ffdc>
+  <ffdc>MASK</ffdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_ERROR_INFO</id>
+    <target>TARGET_IN_ERROR</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <collectRegisterFfdc>
+    <id>REG_FFDC_MSS_DRAMINIT_TRAINING_FAILURE_DISABLE_REGS</id>
+    <target>TARGET_IN_ERROR</target>
+    <targetType>TARGET_TYPE_MCA</targetType>
+  </collectRegisterFfdc>
+  <deconfigure>
+    <target>TARGET_IN_ERROR</target>
+  </deconfigure>
+  <gard>
+    <target>TARGET_IN_ERROR</target>
+  </gard>
+</hwpError>
+
+<hwpError>
+  <rc>RC_MSS_RD_CTR_WORKAROUND_EMPTY_VECTOR</rc>
+  <description>
+    An empty vector was passed into the find_median_and_sort function
+  </description>
+  <callout>
+    <procedure>CODE</procedure>
+    <priority>HIGH</priority>
+  </callout>
+</hwpError>
+
+</hwpErrors>

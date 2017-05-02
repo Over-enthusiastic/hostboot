@@ -1,0 +1,198 @@
+<!-- IBM_PROLOG_BEGIN_TAG                                                   -->
+<!-- This is an automatically generated prolog.                             -->
+<!--                                                                        -->
+<!-- $Source: src/import/chips/p9/procedures/xml/error_info/p9_memory_mss_freq.xml $ -->
+<!--                                                                        -->
+<!-- OpenPOWER HostBoot Project                                             -->
+<!--                                                                        -->
+<!-- Contributors Listed Below - COPYRIGHT 2015,2017                        -->
+<!-- [+] International Business Machines Corp.                              -->
+<!--                                                                        -->
+<!--                                                                        -->
+<!-- Licensed under the Apache License, Version 2.0 (the "License");        -->
+<!-- you may not use this file except in compliance with the License.       -->
+<!-- You may obtain a copy of the License at                                -->
+<!--                                                                        -->
+<!--     http://www.apache.org/licenses/LICENSE-2.0                         -->
+<!--                                                                        -->
+<!-- Unless required by applicable law or agreed to in writing, software    -->
+<!-- distributed under the License is distributed on an "AS IS" BASIS,      -->
+<!-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        -->
+<!-- implied. See the License for the specific language governing           -->
+<!-- permissions and limitations under the License.                         -->
+<!--                                                                        -->
+<!-- IBM_PROLOG_END_TAG                                                     -->
+
+<!-- -->
+<!-- @file memory_mss_freq.xml -->
+<!-- @brief Error xml for mss_freq -->
+<!-- -->
+<!-- *HWP HWP Owner: Andre Marin <aamarin@us.ibm.com> -->
+<!-- *HWP HWP Backup: Brian Silver <bsilver@us.ibm.com> -->
+<!-- *HWP Team: Memory -->
+<!-- *HWP Level: 3 -->
+<!-- *HWP Consumed by: HB:FSP -->
+<!-- -->
+
+<!-- //TK - This needs to be cleaned up after mss_freq is refactored - AAM -->
+
+<hwpErrors>
+
+
+  <hwpError>
+    <rc>RC_MSS_INVALID_TIMING_VALUE</rc>
+    <description>Invalid value calculated for timing value based on MTB and FTB from SPD.</description>
+    <ffdc>VALUE</ffdc>
+    <ffdc>FUNCTION</ffdc>
+    <callout>
+      <target>DIMM_TARGET</target>
+      <priority>HIGH</priority>
+    </callout>
+    <deconfigure>
+      <target>DIMM_TARGET</target>
+    </deconfigure>
+  </hwpError>
+
+  <hwpError>
+    <rc>RC_MSS_REACHED_HIGHEST_TCK</rc>
+    <description>
+      No valid tCK exists that would produce a CAS latency that is common among all dimms.
+    </description>
+    <ffdc>TCK</ffdc>
+  </hwpError>
+
+  <hwpError>
+    <rc>RC_MSS_NO_COMMON_SUPPORTED_CL</rc>
+    <description>Current Configuration has no common supported CL values.</description>
+    <ffdc>CL_SUPPORTED</ffdc>
+    <callout>
+      <target>MCS_TARGET</target>
+      <priority>HIGH</priority>
+    </callout>
+    <deconfigure>
+      <target>MCS_TARGET</target>
+    </deconfigure>
+  </hwpError>
+
+  <hwpError>
+    <rc>RC_MSS_EXCEED_TAA_MAX_NO_CL</rc>
+    <description>Exceeded TAA MAX with Lowest frequency.  No compatable CL.</description>
+    <ffdc>CL</ffdc>
+    <callout>
+      <target>DIMM_TARGET</target>
+      <priority>HIGH</priority>
+    </callout>
+    <deconfigure>
+      <target>DIMM_TARGET</target>
+    </deconfigure>
+  </hwpError>
+
+  <hwpError>
+    <rc>RC_MSS_FREQ_NOT_EQUAL_NEST_FREQ</rc>
+    <description>
+      Case when mss_freq speeds are different and sync mode is required,
+      and mss_freq is not equal to nest freq.
+    </description>
+    <ffdc>MSS_FREQ</ffdc>
+    <ffdc>NEST_FREQ</ffdc>
+    <callout>
+      <target>MCS_TARGET</target>
+      <priority>HIGH</priority>
+    </callout>
+    <deconfigure>
+      <childTargets>
+        <parent>MCS_TARGET</parent>
+        <childType>TARGET_TYPE_DIMM</childType>
+      </childTargets>
+    </deconfigure>
+  </hwpError>
+
+  <!-- Cronus only error when we can't match DIMM speeds to sync mode -->
+  <hwpError>
+    <rc>RC_MSS_FAILED_SYNC_MODE</rc>
+    <description>
+      DIMM speeds are different and sync mode is required
+    </description>
+    <ffdc>NEST_FREQ</ffdc>
+  </hwpError>
+
+  <hwpError>
+    <rc>RC_MSS_UNSUPPORTED_FREQ_CALCULATED</rc>
+    <description>The frequency calculated with spd data is not supported by the jedec standards.</description>
+    <ffdc>DIMM_MIN_FREQ</ffdc>
+  </hwpError>
+
+  <!-- TK - I don't think this belongs in this file - AAM -->
+  <hwpError>
+    <rc>RC_MSS_UNSUPPORTED_DEV_TYPE</rc>
+    <description>Device type is not DDR4.</description>
+    <ffdc>DEV_TYPE</ffdc>
+    <callout>
+      <target>DIMM_TARGET</target>
+      <priority>HIGH</priority>
+    </callout>
+    <deconfigure>
+      <target>DIMM_TARGET</target>
+    </deconfigure>
+  </hwpError>
+
+  <hwpError>
+    <rc>RC_MSS_VPD_FREQ_MAX_FREQ_EMPTY_SET</rc>
+    <description>
+      When considering the frequencies in the VPD and the max supported
+      frequencies based on DIMM config, there are no applicable frequencies
+      remaining
+    </description>
+    <ffdc>MSS_VPD_FREQ_0</ffdc>
+    <ffdc>MSS_VPD_FREQ_1</ffdc>
+    <ffdc>MSS_VPD_FREQ_2</ffdc>
+    <ffdc>MSS_VPD_FREQ_3</ffdc>
+    <ffdc>MSS_MAX_FREQ_0</ffdc>
+    <ffdc>MSS_MAX_FREQ_1</ffdc>
+    <ffdc>MSS_MAX_FREQ_2</ffdc>
+    <ffdc>MSS_MAX_FREQ_3</ffdc>
+    <ffdc>MSS_MAX_FREQ_4</ffdc>
+    <ffdc>REQUIRED_SYNC_MODE</ffdc>
+    <ffdc>MAX_FREQ_FROM_DIMM</ffdc>
+    <callout>
+      <target>MCS_TARGET</target>
+      <priority>HIGH</priority>
+    </callout>
+    <deconfigure>
+      <target>MCS_TARGET</target>
+    </deconfigure>
+  </hwpError>
+
+  <hwpError>
+    <rc>RC_MSS_TOO_MANY_DIMMS_ON_PORT</rc>
+    <description>There seem to be too many dimms on the port</description>
+    <ffdc>DIMM_COUNT</ffdc>
+    <callout>
+      <target>MCA_TARGET</target>
+      <priority>HIGH</priority>
+    </callout>
+    <deconfigure>
+      <target>MCA_TARGET</target>
+    </deconfigure>
+  </hwpError>
+
+  <hwpError>
+    <rc>RC_MSS_TOO_MANY_PRIMARY_RANKS_ON_DIMM</rc>
+    <description>There seem to be too many primary ranks seen on the dimm</description>
+    <ffdc>RANK_COUNT</ffdc>
+    <callout>
+      <target>DIMM_TARGET</target>
+      <priority>HIGH</priority>
+    </callout>
+    <deconfigure>
+      <target>DIMM_TARGET</target>
+    </deconfigure>
+  </hwpError>
+
+  <hwpError>
+    <rc>RC_MSS_FREQ_INDEX_TOO_LARGE</rc>
+    <description>Error calculating the index into max_freq array</description>
+    <ffdc>INDEX</ffdc>
+    <ffdc>NUM_MAX_FREQS</ffdc>
+  </hwpError>
+</hwpErrors>

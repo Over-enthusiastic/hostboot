@@ -1,0 +1,219 @@
+#!/bin/bash
+# IBM_PROLOG_BEGIN_TAG
+# This is an automatically generated prolog.
+#
+# $Source: src/build/tools/hbDistribute $
+#
+# OpenPOWER HostBoot Project
+#
+# Contributors Listed Below - COPYRIGHT 2012,2017
+# [+] International Business Machines Corp.
+#
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# IBM_PROLOG_END_TAG
+TARGET_DIR="invalid directory"
+TARGET="fsp_TARGET"
+SBFW_DIR="invalid directory"
+TEST_TEST=0
+
+print_usage()
+{
+    echo "Usage: $0 [--help] | "
+    echo "          [<path>] [--test] [--release | --vpo | --simics | --fsp]"
+    echo
+    echo "    This script will deliver the defined content for a distribition"
+    echo "    target.  Typically this is used to populate an ODE sandbox with"
+    echo "    images and debug tools or for the generation of a build release"
+    echo "    directory."
+    echo
+    echo "    Target content is defined in src/build/mkrules/dist.targets.mk"
+    echo
+    echo "  Options:"
+    echo "    --help: Prints usage information"
+    echo
+    echo "    --test: Includes test images and content instead of non-test."
+    echo
+    echo "    --release: Create a full release distribution (all targets)."
+    echo "    --vpo: Generate just 'vpo' content."
+    echo "    --simics/--fsp: *default* Generate just 'fsp' content"
+    echo "    --hb-standalone: Indicate if in hb-standalone mode for compile optimizing"
+    echo "    --corrupt <Partition name>[= pro|unpro] (Note: requires '--secureboot')"
+    echo "        Partition 'eyeCatch' name to corrupt a byte of."
+    echo "        Optional '= pro|unpro' to indicate which section of the secure container to corrupt."
+    echo "            Default (empty string '') is protected section."
+    echo "            [Note: Some sections only have a protected section so not relevant for all.]"
+    echo "        Multiple '--corrupt' options are allowed, but note the system will checkstop on the"
+    echo "            first bad partition so multiple may not be that useful."
+    echo "        Example: --corrupt HBI --corrupt HBD=unpro"
+    echo "    --key-transition <imprint|production>   Indicates a key transition is needed and creates a secureboot key transition container."
+    echo "        Note: \"--sign-mode production\" is not allowed with \"--key-transition imprint"
+    echo "        With [--test] will transition to test dev keys, which are a fixed permutation of imprint keys."
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]
+do
+    case $1 in
+        "--help")
+            print_usage
+            exit -1
+        ;;
+
+        "--test")
+            TARGET_TEST=1
+            shift
+        ;;
+
+        "--vpo")
+            TARGET="vpo_TARGET"
+            shift
+        ;;
+
+        "--simics" | "--fsp")
+            TARGET="fsp_TARGET"
+            shift
+        ;;
+
+        "--openpower")
+            TARGET="openpower_TARGET"
+            shift
+        ;;
+
+        "--release")
+            TARGET="ALL"
+            shift
+        ;;
+
+        "--debug")
+            DEBUG="-d"
+            shift
+        ;;
+
+        "--hb-standalone")
+            HB_STANDALONE=1
+            shift
+        ;;
+
+        "--corrupt")
+            # Format is "--corrupt <partition[=pro|unpro]>"
+            CORRUPT_PARAMS="$CORRUPT_PARAMS $1"
+            shift
+            CORRUPT_PARAMS="$CORRUPT_PARAMS $1"
+            shift
+        ;;
+
+        "--key-transition")
+            # Format is "--key-transition <imprint|production>"
+            KEY_TRANSITION_PARAMS="$KEY_TRANSITION_PARAMS $1"
+            shift
+            KEY_TRANSITION_PARAMS="$KEY_TRANSITION_PARAMS $1"
+            shift
+        ;;
+
+        --*)
+            echo "ERROR: Unknown option: $1"
+            exit -1
+        ;;
+
+        *)
+            TARGET_DIR=$1
+            shift
+        ;;
+
+    esac
+done
+
+echo "sbroot=${SANDBOXROOT} sbname=${SANDBOXNAME}"
+echo "target dir ${TARGET_DIR}"
+# Verify target directory or default to sandbox.
+if [ "${TARGET_DIR}" == "invalid directory" ]; then
+    if [ -z "${SANDBOXROOT}" -o -z "${SANDBOXNAME}" ]; then
+        echo "ERROR: TARGET_DIR - No path specified and \$SANDBOXBASE undefined."
+        print_usage
+        exit -1
+    else
+        TARGET_DIR=${SANDBOXROOT}/${SANDBOXNAME}/src/hbfw
+    fi
+fi
+
+
+echo "sbfw dir = ${SBFW_DIR}"
+# Verify SBFW directory or default to sandbox.
+if [ "${SBFW_DIR}" == "invalid directory" -a \
+    "${TARGET}" != "openpower_TARGET" ]; then
+    if [ -z "${SANDBOXROOT}" -o -z "${SANDBOXNAME}" ]; then
+        echo "ERROR:SBFW - No path specified and \$SANDBOXBASE undefined."
+        print_usage
+        exit -1
+    else
+        SBFW_DIR=${SANDBOXROOT}/${SANDBOXNAME}/src/sbei/sbfw
+    fi
+fi
+
+# Find root of repository.
+if [ -e "src/build/tools/hbDistribute" ]; then
+    REPO_ROOT="./"
+else
+    REPO_ROOT=`git rev-parse --show-toplevel`
+    if [ -z $REPO_ROOT ]; then
+        echo "ERROR: Not in a git repo."
+        exit
+    fi
+fi
+
+# @TODO RTC:157356
+# Temporary development signing tools to create valid container headers
+export SIGNING_DIR="/gsa/ausgsa/home/h/o/hostboot/hostboot-project/secure-dev-signing/secure-boot-scripts/rom_new_header/sign/obj"
+export DEV_KEY_DIR="/gsa/ausgsa/home/h/o/hostboot/hostboot-project/secure-dev-signing/dev_keys"
+# Dynamically check config file if secureboot enabled build occurred
+if [[ -f ${PROJECT_ROOT}/obj/genfiles/config.h ]]; then
+    if cat ${PROJECT_ROOT}/obj/genfiles/config.h | grep -q "CONFIG_SECUREBOOT 1"; then
+        echo "In secure mode"
+        export CONFIG_SECUREBOOT=1
+    else
+        echo "In unsecure mode"
+    fi
+else
+    echo "File DNE ${PROJECT_ROOT}/obj/genfiles/config.h"
+    exit -1
+fi
+
+# Dynamically check if file exists indicating the fsprelease.config was used
+# Note this file is generated in the hb config file rule in top level makefile
+if [[ -f ${PROJECT_ROOT}/obj/genfiles/hb_fsp_release ]]; then
+    echo "FSP build, using fsp pnor xml layout"
+else
+    echo "Non FSP build, using default pnor xml layout"
+    export DEFAULT_PNOR=1
+fi
+
+# Execute makefile for distribution.
+mkdir -p $TARGET_DIR
+mkdir -p $SBFW_DIR
+export TARGET_TEST
+export TARGET_DIR
+export SBFW_DIR
+export HB_STANDALONE
+export CORRUPT_PARAMS
+if [ -n "$CORRUPT_PARAMS" ]; then
+    echo "Corruption options = $CORRUPT_PARAMS"
+fi
+export KEY_TRANSITION_PARAMS
+if [ -n "$KEY_TRANSITION_PARAMS" ]; then
+    echo "Key transition options = $KEY_TRANSITION_PARAMS"
+fi
+cd $REPO_ROOT/src/build/mkrules
+make -rR ${DEBUG:=} -f dist.targets.mk $TARGET
+

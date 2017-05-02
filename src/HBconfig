@@ -1,0 +1,44 @@
+# HBconfig file for VPO_COMPILE option
+config VPO_COMPILE
+    default n
+    help
+        Compile and build image for VPO environment
+
+config P9_VPO_COMPILE
+    default n
+    help
+        Compile and build image for VPO environment
+
+config BMC_AST2500
+    default n
+    help
+        Compile hostboot support for AST2500 based BMC
+
+config BMC_AST2400
+    default y if (BMC_AST2500)
+    help
+        Compile hostboot support for AST2400 based BMC
+
+config P9_SYSTEM
+    default y
+    help
+        Compile with P9 configurations
+
+config P9_PAGE_TABLE
+    default y
+    help
+        Use the P9 version of the page table setup
+
+config INCLUDE_XML_OPPOWERVM
+    default y
+    help
+        Indicates that a build should include the contents
+        of attribute_types_oppowervm.xml and
+        target_types_oppowervm.xml
+
+config INCLUDE_XML_OPENPOWER
+    default y
+    help
+        Indicates that a build should include the contents
+        of attribute_types_openpower.xml and
+        target_types_openpower.xml

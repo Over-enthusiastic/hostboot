@@ -1,0 +1,55 @@
+# IBM_PROLOG_BEGIN_TAG
+# This is an automatically generated prolog.
+#
+# $Source: src/usr/isteps/istep15/makefile $
+#
+# OpenPOWER HostBoot Project
+#
+# Contributors Listed Below - COPYRIGHT 2015,2017
+# [+] International Business Machines Corp.
+#
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# IBM_PROLOG_END_TAG
+ROOTPATH = ../../../..
+MODULE = istep15
+PROCEDURES_PATH    = ${ROOTPATH}/src/import/chips/p9/procedures
+
+EXTRAINCDIR += ${PROCEDURES_PATH}/hwp/nest/
+EXTRAINCDIR += ${PROCEDURES_PATH}/hwp/pm/
+EXTRAINCDIR += ${PROCEDURES_PATH}/stop_reg/
+EXTRAINCDIR += ${PROCEDURES_PATH}/hwp/lib/
+EXTRAINCDIR += ${PROCEDURES_PATH}/utils/stopreg/
+EXTRAINCDIR += ${PROCEDURES_PATH}/hwp/customize/
+EXTRAINCDIR += ${ROOTPATH}/src/import/chips/p9/common/include/
+EXTRAINCDIR += ${ROOTPATH}/src/import/hwpf/fapi2/include/
+EXTRAINCDIR += ${ROOTPATH}/src/import/chips/p9/xip/
+EXTRAINCDIR += ${ROOTPATH}/src/import/chips/p9/utils/
+EXTRAINCDIR += ${ROOTPATH}/src/import/chips/p9/utils/imageProcs/
+EXTRAINCDIR += ${ROOTPATH}/src/include/usr/fapi2/
+EXTRAINCDIR += ${ROOTPATH}/obj/genfiles/
+EXTRAINCDIR += ${ROOTPATH}/src/import/chips/p9/common/pmlib/include/registers/
+
+OBJS += host_build_stop_image.o
+OBJS += proc_set_pba_homer_bar.o
+OBJS += host_establish_ex_chiplet.o
+OBJS += host_start_stop_engine.o
+
+
+include ${ROOTPATH}/procedure.rules.mk
+include $(PROCEDURES_PATH)/hwp/pm/p9_pm_set_homer_bar.mk
+include $(PROCEDURES_PATH)/hwp/pm/p9_update_ec_eq_state.mk
+include ${ROOTPATH}/config.mk
+
+VPATH += ${ROOTPATH}/src/import/chips/p9/procedures/hwp/pm/

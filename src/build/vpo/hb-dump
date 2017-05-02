@@ -1,0 +1,116 @@
+#!/usr/bin/perl
+# IBM_PROLOG_BEGIN_TAG
+# This is an automatically generated prolog.
+#
+# $Source: src/build/vpo/hb-dump $
+#
+# OpenPOWER HostBoot Project
+#
+# COPYRIGHT International Business Machines Corp. 2011,2014
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# IBM_PROLOG_END_TAG
+
+#
+# Purpose:  This perl script works on VBU and will dump the entire L3 cache
+#
+# Author: CamVan Nguyen
+# Last Updated: 09/07/2011
+#
+
+#------------------------------------------------------------------------------
+# Specify perl modules to use
+#------------------------------------------------------------------------------
+use strict;
+use warnings;
+use File::Basename;
+
+#------------------------------------------------------------------------------
+# Forward Declaration
+#------------------------------------------------------------------------------
+sub printUsage;
+
+
+#==============================================================================
+# MAIN
+#==============================================================================
+
+#------------------------------------------------------------------------------
+# Parse optional input arguments
+#------------------------------------------------------------------------------
+my $numArgs = $#ARGV + 1;
+#print "num args = $numArgs\n";
+#print "argument list = @ARGV\n";
+
+my $toolDir = dirname (__FILE__);
+#print "$toolDir\n";
+
+for (my $i=0; $i<$numArgs; $i++)
+{
+    if (($ARGV[$i] eq "--help") || ($ARGV[$i] eq "-h"))
+    {
+        #Print command line help
+        printUsage();
+        exit (0);
+    }
+    elsif ($ARGV[$i] eq "--out-path")
+    {
+        if (($i + 1) >= $numArgs)
+        {
+            die "No value given for --out-path parameter.\n";
+        }
+        $i++;
+    }
+    elsif ($ARGV[$i] !~ m/^-[cknsp]\d+/)
+    {
+        print "Invalid argument entered:  $ARGV[$i]\n";
+        printUsage();
+        exit(1);
+    }
+}
+
+
+#------------------------------------------------------------------------------
+# Dump L3
+#------------------------------------------------------------------------------
+my $command = "$toolDir/hb-virtdebug.pl @ARGV";
+system($command);
+
+
+#==============================================================================
+# SUBROUTINES
+#==============================================================================
+
+#------------------------------------------------------------------------------
+# Print command line help
+#------------------------------------------------------------------------------
+sub printUsage()
+{
+    print ("\nUsage: hb-dump [--help] |\n");
+    print ("               [--out-path <path to save output data>]\n");
+    print ("               [-k#] [-n#] [-s#] [-p#] [-c#]\n\n");
+    print ("  This program dumps the entire L3 to a file.\n");
+    print ("  Use the hb-dump-debug program to expand and view data in the file.\n\n");
+    print ("  User should copy hb-virtdebug.pl to the current directory or set\n");
+    print ("  the env variable HB_IMGDIR to the path of the file.\n\n");
+    print ("  --help            Prints usage information.\n");
+    print ("  --out-path        Directory where the output data will be saved.\n");
+    print ("                    Default path is the current directory.\n");
+    print ("  -k#               Specify which cage to act on (default = 0).\n");
+    print ("  -n#               Specify which node to act on (default = 0).\n");
+    print ("  -s#               Specify which slot to act on (default = 0).\n");
+    print ("  -p#               Specify which chip position to act on (default = 0).\n");
+    print ("  -c#               Specify which core/chipUnit to act on (default = 3).\n");
+}
+

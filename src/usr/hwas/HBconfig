@@ -1,0 +1,16 @@
+config NO_GARD_SUPPORT
+    default n
+    help
+        Skip guarding when set
+
+config HOST_HCDB_SUPPORT
+   default n
+   depends on MEMVPD_READ_FROM_HW || MVPD_READ_FROM_HW || DJVPD_READ_FROM_HW
+   help
+       Hostboot will detect hardware changes
+
+config CLOCK_DECONFIGS_FATAL
+    default n
+    help
+        Hostboot will terminate the boot on any clock error
+

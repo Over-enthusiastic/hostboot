@@ -1,0 +1,217 @@
+# IBM_PROLOG_BEGIN_TAG
+# This is an automatically generated prolog.
+#
+# $Source: src/usr/diag/prdf/common/plat/pegasus/Membuf.rule $
+#
+# OpenPOWER HostBoot Project
+#
+# COPYRIGHT International Business Machines Corp. 2012,2014
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# IBM_PROLOG_END_TAG
+
+################################################################################
+#
+# Scope:
+#   Registers and actions for the following chiplets:
+#
+# Chiplet  Register Adddresses      Description
+# =======  =======================  ============================================
+#   TP     0x01000000 - 0x01FFFFFF  TP pervasive logic
+#   NEST   0x02000000 - 0x02FFFFFF  NEST pervasive logic
+#   MEM    0x03000000 - 0x03FFFFFF  MEM pervasive logic, note that this does
+#                                   include the SCOM addresses characterized by
+#                                   the MBA target. See Mba.rule for those
+#                                   address ranges.
+#
+################################################################################
+
+chip Membuf
+{
+    name        "Centaur Chip";
+    targettype  TYPE_MEMBUF;
+    sigoff      0x8000;
+    dump        DUMP_CONTENT_HW;
+    scomlen     64;
+
+# Include Extra signatures
+.include "prdfCenMembufExtraSig.H";
+.include "prdfP8ProcMbCommonExtraSig.H";
+
+ #############################################################################
+ #                                                                           #
+ #  ######                                                                   #
+ #  #     #  ######   ####     ###    ####    #####  ######  #####    ####   #
+ #  #     #  #       #    #     #    #          #    #       #    #  #       #
+ #  ######   #####   #          #     ####      #    #####   #    #   ####   #
+ #  #   #    #       #  ###     #         #     #    #       #####        #  #
+ #  #    #   #       #    #     #    #    #     #    #       #   #   #    #  #
+ #  #     #  ######   ####     ###    ####      #    ######  #    #   ####   #
+ #                                                                           #
+ #############################################################################
+
+    ############################################################################
+    # Global Broadcast Registers
+    ############################################################################
+
+    register GLOBAL_CS_FIR
+    {
+        name        "Global Checkstop Attention FIR";
+        scomaddr    0x570F001C;
+        capture     group default;
+    };
+
+    register GLOBAL_RE_FIR
+    {
+        name        "Global Recoverable Attention FIR";
+        scomaddr    0x570F001B;
+        capture     group default;
+    };
+
+    register GLOBAL_SPA
+    {
+        name        "Global Special Attention FIR";
+        scomaddr    0x570F001A;
+        capture     group default;
+    };
+
+# Import all of the chiplet registers
+.include "Membuf_regs_TP.rule"
+.include "Membuf_regs_NEST.rule"
+.include "Membuf_regs_MEM.rule"
+
+    ############################################################################
+    #   Non-existent Registers for Capture
+    ############################################################################
+
+    register VPD_FAILED_LANES_0TO63
+    {
+        name        "Bit map 0-63 of failed lanes read from VPD";
+        scomaddr    0xFFFF0001;
+        access      no_access;
+        capture     group never;
+    };
+
+    register VPD_FAILED_LANES_64TO127
+    {
+        name        "Bit map 64-127 of failed lanes read from VPD";
+        scomaddr    0xFFFF0002;
+        access      no_access;
+        capture     group never;
+    };
+
+    register ALL_FAILED_LANES_0TO63
+    {
+        name        "Bit map 0-63 of failed lanes from io_read_erepair";
+        scomaddr    0xFFFF0003;
+        access      no_access;
+        capture     group never;
+    };
+
+    register ALL_FAILED_LANES_64TO127
+    {
+        name        "Bit map 64-127 of failed lanes from io_read_erepair";
+        scomaddr    0xFFFF0004;
+        access      no_access;
+        capture     group never;
+    };
+
+    ############################################################################
+    # PLL Registers
+    ############################################################################
+
+    register CFAM_FSI_STATUS
+    {
+        name        "VI.FSI.STATUS";
+        scomaddr    0x00001007;
+        capture     group never;
+    };
+
+
+};
+
+ ##############################################################################
+ #                                                                            #
+ # ####                                 #                                     #
+ # #   # #   # #    #####  ###      #  # #    ##  ##### ###  ###  #   #  ###  #
+ # #   # #   # #    #     #        #  #   #  #  #   #    #  #   # ##  # #     #
+ # ####  #   # #    ####   ###    #  ####### #      #    #  #   # # # #  ###  #
+ # #  #  #   # #    #         #  #   #     # #  #   #    #  #   # #  ##     # #
+ # #   #  ###  #### #####  ###  #    #     #  ##    #   ###  ###  #   #  ###  #
+ #                                                                            #
+ ##############################################################################
+
+################################################################################
+# Global Broadcast Registers
+################################################################################
+
+rule GlobalFir
+{
+    CHECK_STOP:  GLOBAL_CS_FIR;
+    RECOVERABLE: GLOBAL_RE_FIR;
+
+    # All of the Centaur CS (channel fail) bits are set as checkstop.
+    UNIT_CS:     GLOBAL_CS_FIR;
+};
+
+group gGlobalFir attntype CHECK_STOP, RECOVERABLE, UNIT_CS filter singlebit
+{
+    /** GLOBAL_FIR[1]
+     *  Attention from TP chiplet
+     */
+    (GlobalFir, bit(1)) ? analyze(gTpChipletFir);
+
+    /** GLOBAL_FIR[2]
+     *  Attention from NEST chiplet
+     */
+    (GlobalFir, bit(2)) ? analyze(gNestChipletFir);
+
+    /** GLOBAL_FIR[3]
+     *  Attention from MEM chiplet
+     */
+    (GlobalFir, bit(3)) ? analyze(gMemChipletFir);
+};
+
+rule GlobalSpa
+{
+    SPECIAL: GLOBAL_SPA;
+};
+
+group gGlobalSpa attntype SPECIAL filter singlebit
+{
+    /** GLOBAL_SPA[3]
+     *  Attention from MEM chiplet
+     */
+    (GlobalSpa, bit(3)) ? analyze(gMemChipletSpa);
+};
+
+# Import all of the chiplet rules and actions
+.include "Membuf_acts_TP.rule"
+.include "Membuf_acts_NEST.rule"
+.include "Membuf_acts_MEM.rule"
+
+ ##############################################################################
+ #                                                                            #
+ #    #                                  ###                                  #
+ #   # #    ##  ##### ###  ###  #   #   #   # #     #    ###   ###  ###  ###  #
+ #  #   #  #  #   #    #  #   # ##  #   #     #    # #  #     #     #   #     #
+ # ####### #      #    #  #   # # # #   #     #   #####  ###   ###  ##   ###  #
+ # #     # #  #   #    #  #   # #  ##   #   # #   #   #     #     # #       # #
+ # #     #  ##    #   ###  ###  #   #    ###  ### #   #  ###   ###  ###  ###  #
+ #                                                                            #
+ ##############################################################################
+
+# Include the common action set.
+.include "CommonActions.rule"
+

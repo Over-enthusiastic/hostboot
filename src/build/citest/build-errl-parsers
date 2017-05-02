@@ -1,0 +1,59 @@
+#!/bin/sh
+# IBM_PROLOG_BEGIN_TAG
+# This is an automatically generated prolog.
+#
+# $Source: src/build/citest/build-errl-parsers $
+#
+# OpenPOWER HostBoot Project
+#
+# Contributors Listed Below - COPYRIGHT 2014,2015
+# [+] International Business Machines Corp.
+#
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# IBM_PROLOG_END_TAG
+
+echo "====Building error log parsers===="
+
+if [ -z $HOSTBOOT_CI_ENV_SETUP ];
+then
+    source "$PROJECT_ROOT/src/build/citest/setup-env"
+fi
+
+if [ ! -d "$SANDBOXBASE" ];
+then
+    echo "Cannot find sandbox $SANDBOXBASE"
+    exit -1
+fi
+
+echo "----Creating directories"
+mkdir -p ${SANDBOXBASE}/src/srci || exit -1
+mkdir -p ${SANDBOXBASE}/src/errl || exit -1
+
+echo "----Building hbfw"
+execute_in_sandbox "cd ${SANDBOXBASE}/src/hbfw && mk -a -j32" "x86.nfp"
+if [ $? -ne 0 ]; then exit -1; fi
+
+echo "----Building srci"
+execute_in_sandbox "cd ${SANDBOXBASE}/src/srci && mk -a -j32" "x86.nfp"
+if [ $? -ne 0 ]; then exit -1; fi
+
+echo "----Building errl"
+execute_in_sandbox "cd ${SANDBOXBASE}/src/errl && mk -a -j32" "x86.nfp"
+if [ $? -ne 0 ]; then exit -1; fi
+
+echo "----Extracting errl tool"
+mkdir -p ${SANDBOXBASE}/simics || exit -1
+tar -xvf ${SANDBOXBASE}/obj/x86.nfp/errl/nfp/tool/errl.tar \
+         -C ${SANDBOXBASE}/simics errl  || exit -1

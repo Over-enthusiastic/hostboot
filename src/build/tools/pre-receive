@@ -1,0 +1,91 @@
+#!/usr/bin/perl
+# IBM_PROLOG_BEGIN_TAG
+# This is an automatically generated prolog.
+#
+# $Source: src/build/tools/pre-receive $
+#
+# OpenPOWER HostBoot Project
+#
+# Contributors Listed Below - COPYRIGHT 2011,2016
+# [+] International Business Machines Corp.
+#
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# IBM_PROLOG_END_TAG
+
+#
+#   From "git help githooks" :
+#   "This hook executes once for the receive operation. It takes no arguments,
+#       but for each ref to be updated it receives on standard input a line of
+#       the format:
+#
+#       <old-value> SP <new-value> SP <ref-name> LF
+#
+#       where <old-value> is the old object name stored in the ref,
+#       <new-value> is the new object name to be stored in the ref,
+#       and <ref-name> is the full name of the ref.
+#       When creating a new ref, <old-value> is 40 0."
+#
+
+$COPYRIGHT_SCRIPT=".git/hooks/addCopyright";
+
+print "Processing pre-receive script\n";
+
+while (<STDIN>)
+{
+    my $refsLine = $_;
+    if ($refsLine =~ /([0-9a-f]*) ([0-9a-f]*) (.*)/)
+    {
+        my ($oldRef, $newRef, $refName) = ($1, $2, $3);
+        print "$oldRef, $newRef, $refName\n";
+
+        my @diffTreeList = split('\n', `git diff-tree -r --diff-filter=AM $newRef $oldRef`);
+        foreach my $diffTreeLine (@diffTreeList)
+        {
+            #print "$diffTreeLine\n";
+            if ($diffTreeLine =~ m/^:\d*\s*\d*\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)/)
+            {
+                my ($diffNewRef, $diffOldRef, $type, $name) = ($1, $2, $3, $4);
+                my $namePart = $name;
+                if ($name =~ m/\/([^\/]*)$/)
+                {
+                    $namePart = $1;
+                }
+
+                if ($diffNewRef != 0)
+                {
+                    my $tmpName = "/tmp/git_$<_$diffNewRef"."_$namePart";
+
+                    system("git show $diffNewRef > $tmpName");
+                    if ($? != 0)
+                    {
+                        print "Unable to git show $diffNewRef on file $name type $type\n";
+                        exit 1;
+                    }
+                    # system("/gsa/rchgsa/projects/p/powerhal/tools/addCopyright.pl validate $tmpName");
+                    system( "$COPYRIGHT_SCRIPT validate $tmpname" );
+                    if ($? != 0)
+                    {
+                        print "File $name does not have a correct prolog\n";
+                        system("rm -f $tmpName");
+                        exit 1;
+                    }
+                    system("rm -f $tmpName");
+                }
+            }
+        }
+    }
+}
+
+exit 0;

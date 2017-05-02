@@ -1,0 +1,114 @@
+<!-- IBM_PROLOG_BEGIN_TAG                                                   -->
+<!-- This is an automatically generated prolog.                             -->
+<!--                                                                        -->
+<!-- $Source: src/usr/targeting/common/xmltohb/target_types_openpower.xml $ -->
+<!--                                                                        -->
+<!-- OpenPOWER HostBoot Project                                             -->
+<!--                                                                        -->
+<!-- Contributors Listed Below - COPYRIGHT 2016,2017                        -->
+<!-- [+] International Business Machines Corp.                              -->
+<!--                                                                        -->
+<!--                                                                        -->
+<!-- Licensed under the Apache License, Version 2.0 (the "License");        -->
+<!-- you may not use this file except in compliance with the License.       -->
+<!-- You may obtain a copy of the License at                                -->
+<!--                                                                        -->
+<!--     http://www.apache.org/licenses/LICENSE-2.0                         -->
+<!--                                                                        -->
+<!-- Unless required by applicable law or agreed to in writing, software    -->
+<!-- distributed under the License is distributed on an "AS IS" BASIS,      -->
+<!-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        -->
+<!-- implied. See the License for the specific language governing           -->
+<!-- permissions and limitations under the License.                         -->
+<!--                                                                        -->
+<!-- IBM_PROLOG_END_TAG                                                     -->
+<attributes>
+
+<!-- =====================================================================
+     Contains the target definition of attributes that are only available
+     on openpower systems.  This file is only compiled when
+     CONFIG_XML_INCLUDE_OPENPOWER is set to true and is always false on
+     FSP based systems.
+     =====================================================================
+ -->
+<targetTypeExtension>
+    <id>base</id>
+    <attribute><id>HDAT_I2C_ENGINE</id></attribute>
+    <attribute><id>HDAT_I2C_MASTER_PORT</id></attribute>
+    <attribute><id>HDAT_I2C_DEVTYPE</id></attribute>
+    <attribute><id>HDAT_I2C_ADDR</id></attribute>
+    <attribute><id>HDAT_I2C_SLAVE_PORT</id></attribute>
+    <attribute><id>HDAT_I2C_BUS_FREQ</id></attribute>
+    <attribute><id>HDAT_I2C_DEV_PURPOSE</id></attribute>
+    <attribute><id>HDAT_I2C_ELEMENTS</id></attribute>
+    <attribute>
+        <id>IPMI_INSTANCE</id>
+        <default>0xFF</default>
+    </attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>sys-sys-power9</id>
+    <attribute><id>ADC_CHANNEL_FUNC_IDS</id></attribute>
+    <attribute><id>ADC_CHANNEL_SENSOR_NUMBERS</id></attribute>
+    <attribute><id>ADC_CHANNEL_GNDS</id></attribute>
+    <attribute><id>ADC_CHANNEL_GAINS</id></attribute>
+    <attribute><id>ADC_CHANNEL_OFFSETS</id></attribute>
+    <attribute><id>APSS_GPIO_PORT_MODES</id></attribute>
+    <attribute><id>APSS_GPIO_PORT_PINS</id></attribute>
+    <attribute><id>IPMI_SENSORS</id></attribute>
+    <attribute><id>IPMI_MAX_BUFFER_SIZE</id></attribute>
+    <attribute><id>OP_TRACE_LITE</id></attribute>
+    <attribute><id>OPEN_POWER_DIMM_THROTTLE_TEMP_DEG_C</id></attribute>
+    <attribute><id>OPEN_POWER_DIMM_ERROR_TEMP_DEG_C</id></attribute>
+    <attribute><id>OPEN_POWER_MEMCTRL_THROTTLE_TEMP_DEG_C</id></attribute>
+    <attribute><id>OPEN_POWER_PROC_WEIGHT</id></attribute>
+    <attribute><id>OPEN_POWER_QUAD_WEIGHT</id></attribute>
+    <attribute><id>OPEN_POWER_PROC_DVFS_TEMP_DEG_C</id></attribute>
+    <attribute><id>OPEN_POWER_MEMCTRL_ERROR_TEMP_DEG_C</id></attribute>
+    <attribute><id>OPEN_POWER_N_BULK_POWER_LIMIT_WATTS</id></attribute>
+    <attribute><id>OPEN_POWER_N_MAX_MEM_POWER_WATTS</id></attribute>
+    <attribute><id>OPEN_POWER_MEMCTRL_READ_TIMEOUT_SEC</id></attribute>
+    <attribute><id>OPEN_POWER_DIMM_READ_TIMEOUT_SEC</id></attribute>
+    <attribute><id>OPEN_POWER_PROC_ERROR_TEMP_DEG_C</id></attribute>
+    <attribute><id>OPEN_POWER_MIN_MEM_UTILIZATION_THROTTLING</id></attribute>
+    <attribute><id>OPEN_POWER_PROC_READ_TIMEOUT_SEC</id></attribute>
+    <attribute><id>OPEN_POWER_REGULATOR_EFFICIENCY_FACTOR</id></attribute>
+    <attribute><id>OPEN_POWER_MIN_POWER_CAP_WATTS</id></attribute>
+    <attribute><id>OPEN_POWER_SOFT_MIN_PCAP_WATTS</id></attribute>
+    <attribute><id>OPEN_POWER_N_PLUS_ONE_BULK_POWER_LIMIT_WATTS</id></attribute>
+    <attribute><id>OPEN_POWER_N_PLUS_ONE_MAX_MEM_POWER_WATTS</id></attribute>
+    <attribute><id>OPEN_POWER_TURBO_MODE_SUPPORTED</id></attribute>
+    <attribute><id>OPAL_MODEL</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>enc-node-power9</id>
+    <attribute><id>IPMI_SENSORS</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>chip-processor-power9</id>
+    <attribute><id>IPMI_SENSORS</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>chip-membuf-centaur</id>
+    <attribute><id>IPMI_SENSORS</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>lcard-dimm</id>
+    <attribute><id>IPMI_SENSORS</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>occ</id>
+    <attribute><id>IPMI_SENSORS</id></attribute>
+</targetTypeExtension>
+
+<targetTypeExtension>
+    <id>unit-core-power9</id>
+    <attribute><id>IPMI_SENSORS</id></attribute>
+</targetTypeExtension>
+</attributes>

@@ -1,0 +1,152 @@
+/* IBM_PROLOG_BEGIN_TAG                                                   */
+/* This is an automatically generated prolog.                             */
+/*                                                                        */
+/* $Source: src/usr/secureboot/base/securerommgr.H $                      */
+/*                                                                        */
+/* OpenPOWER HostBoot Project                                             */
+/*                                                                        */
+/* Contributors Listed Below - COPYRIGHT 2013,2017                        */
+/* [+] International Business Machines Corp.                              */
+/*                                                                        */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License");        */
+/* you may not use this file except in compliance with the License.       */
+/* You may obtain a copy of the License at                                */
+/*                                                                        */
+/*     http://www.apache.org/licenses/LICENSE-2.0                         */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/*                                                                        */
+/* IBM_PROLOG_END_TAG                                                     */
+
+#ifndef __SECUREBOOT_SECUREROMMANAGER_H
+#define __SECUREBOOT_SECUREROMMANAGER_H
+
+#include <errl/errlentry.H>
+#include <securerom/ROM.H>
+#include <utility>
+
+typedef std::vector< std::pair<void*,size_t> > blobPair_t;
+
+/** @class SecureRomManager
+ *  @brief Class for loading and interacting with SecureROM in memory
+ */
+class SecureRomManager
+{
+    public:
+
+        /**
+         * @brief Initialize Secure Rom by loading it into memory and
+         *        getting Hash Keys
+         *
+         * @return errlHndl_t  NULL on success
+         */
+        errlHndl_t initialize();
+
+
+        /**
+         * @brief Verify Container against system hash keys
+         *
+         * @param[in] i_container  Void pointer to effective address
+         *                          of container
+         * @param[in] i_hwKeyHash  Custom hw keys' hash to test against
+         *                         [default = nullptr, use current hw hash key
+         *
+         * @return errlHndl_t NULL on success
+         */
+        errlHndl_t verifyContainer(void * i_container,
+                                   const sha2_hash_t* i_hwKeyHash = nullptr);
+
+        /**
+         * @brief Hash Blob
+         *
+         * @param[in] i_blob        Void pointer to effective address
+         *                              of blob
+         * @param[in] i_size        Size of blob in bytes
+         * @param[out] o_buf        Resulting hash buffer
+         *
+         * @return N/A
+         */
+        void hashBlob(const void * i_blob, size_t i_size, SHA512_t o_buf) const;
+
+        /**
+         * @brief Retrieve the internal hardware keys' hash from secure ROM
+         *        object.
+         *
+         * @param[out] o_hash  Reference to the sha2_hash_t array to copy the
+         *                     hash to.
+         */
+        void getHwKeyHash(sha2_hash_t o_hash);
+
+        /*
+         * @brief Hash the concatenation of N Blobs
+         *
+         * Asserts if any blob pointer is NULL
+         *
+         * @param[in]  i_blobs     Vector of pairs composed of a void
+         *                         pointer to effective address and size
+         *                         of the blob to concatenate
+         * @param[out] o_buf       SHA512 hash
+         *
+         * @return N/A
+         */
+        void hashConcatBlobs (const blobPair_t &i_blobs, SHA512_t o_buf) const;
+
+        /*
+         * @brief Getter for private "is valid" variable
+         *
+         * @return bool - True if valid, false otherwise
+         */
+        bool isValid();
+
+    protected:
+
+        /**
+         * @brief  Constructor
+         */
+        SecureRomManager():iv_securerom(nullptr),
+                           iv_secureromValid(false),
+                           iv_key_hash(nullptr) {}
+
+        /**
+         * @brief Destructor
+         */
+        ~SecureRomManager() {}
+
+    private:
+
+        /********************************************
+         * VARIABLES
+         ********************************************/
+
+        /**
+         * Void pointer to effective address location of Secure ROM in memory
+         */
+        const void * iv_securerom;
+
+        /**
+         * Cached valid check if secure rom is valid
+         */
+        bool iv_secureromValid;
+
+        /**
+         * HW key' hash retrieved from system
+         */
+        const sha2_hash_t* iv_key_hash;
+
+        /********************************************
+         * Private Functions
+         ********************************************/
+
+        /**
+         * @brief Retrieves HW keys' hash from the system
+         */
+        void getHwKeyHash();
+
+}; // end of SecureRomManager class
+
+#endif

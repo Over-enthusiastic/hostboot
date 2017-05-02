@@ -1,0 +1,70 @@
+config SFC_IS_IBM_DPSS
+    default n
+    depends on !SFC_IS_AST2400 && !SFC_IS_FAKE && !SFC_IS_AST2500
+    help
+        The Serial Flash Controller is the IBM DPSS FPGA.
+
+config SFC_IS_AST2400
+    default y if !SFC_IS_AST2500
+    depends on !SFC_IS_IBM_DPSS && !SFC_IS_FAKE && !SFC_IS_AST2500
+    help
+        The Serial Flash Controller is the AST2400 BMC.
+
+config SFC_IS_AST2500
+    default n
+    depends on !SFC_IS_IBM_DPSS && !SFC_IS_FAKE && !SFC_IS_AST2400
+    help
+        The Serial Flash Controller is the AST2500 BMC.
+
+config SFC_IS_FAKE
+    default n
+    depends on !SFC_IS_IBM_DPSS && !SFC_IS_AST2400 && !SFC_IS_AST2500
+    help
+        The Serial Flash Controller is emulated using memory.
+
+config BMC_DOES_SFC_INIT
+    default n
+    help
+        The BMC is completely responsible for initializing and configuring the
+        SFC before Hostboot is started.  The BMC is also responsible for doing
+        any repairs or recovery for the SFC.
+
+config ALLOW_MICRON_PNOR
+    default y
+    help
+        Include support for Micron PNOR chips
+
+config ALLOW_MACRONIX_PNOR
+    default y
+    help
+        Include support for Macronix PNOR chips
+
+config PNOR_IS_32MB
+    default n
+    depends on !PNOR_IS_128MB && !PNOR_IS_64MB
+    help
+        Size of the attached flash chip is 32MB
+
+config PNOR_IS_64MB
+    default y
+    depends on !PNOR_IS_32MB && !PNOR_IS_128MB
+    help
+        Size of the attached flash chip is 64MB
+
+config PNOR_IS_128MB
+    default n
+    depends on !PNOR_IS_32MB && !PNOR_IS_64MB
+    help
+        Size of the attached flash chip is 128MB
+
+config PNOR_TWO_SIDE_SUPPORT
+    default n
+    depends on PNOR_IS_128MB
+    help
+        This is used to turn on/off two sided pnor support
+
+config PNOR_INIT_FOUR_BYTE_ADDR
+    default n
+    depends on !BMC_DOES_SFC_INIT
+    help
+        PNOR starts out in 3-byte address mode, hostboot must enable 4-byte mode.
